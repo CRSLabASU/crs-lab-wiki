@@ -1,0 +1,846 @@
+---
+name: Softbank NAO V6
+units:
+  - nickname: Jimmy
+    status: OPERATIONAL
+  - nickname: Yoda
+    status: OPERATIONAL
+  - nickname: Bran
+    status: DEGRADED
+    note: Broken finger
+  - nickname: Echo
+    status: OPERATIONAL
+platform: Humanoid Robot
+status: OPERATIONAL
+lastChecked: "2026-03-26"
+location: "CRS Lab – Brickyard 2nd Floor"
+maintainers:
+  - "Ali Kefel"
+  - "Taha Saheen"
+  - "Nick Huynh"
+  - "Faisal Alyousefi"
+summary: "Humanoid robot platform. Multiple units assessed — one fully operational, others reset to factory settings. Battery health remains a concern."
+thumbnail: "/robot-media/nao/images/nao-thumbnail.jpg"
+resources:
+  - label: NAO V6 Flash Guide (v2.8.7)
+    file: https://www.robotlab.com/hubfs/NAO%20V6%202.8.7%20Guide.pdf
+    type: doc
+  - label: NAOqi Python SDK Documentation
+    file: http://doc.aldebaran.com/2-8/index_dev_guide.html
+    type: doc
+  - label: NAO V6 User Guide
+    file: http://doc.aldebaran.com/2-8/home_nao.html
+    type: doc
+  - label: Choreographe User Guide
+    file: http://doc.aldebaran.com/2-8/software/choregraphe/choregraphe_overview.html
+    type: doc
+  - label: ALMotion API Reference
+    file: http://doc.aldebaran.com/2-8/naoqi/motion/almotion.html
+    type: doc
+  - label: naoqi_driver2 (ROS 2 Bridge)
+    file: https://github.com/ros-naoqi/naoqi_driver2
+    type: doc
+  - label: naoqi_bridge_msgs2 (ROS 2 Messages)
+    file: https://github.com/ros-naoqi/naoqi_bridge_msgs2
+    type: doc
+  - label: full_demo_naoqi_sdk.py
+    file: /robot-media/nao/scripts/full_demo_naoqi_sdk.py
+    type: file
+  - label: nao_obstacle_walk.py
+    file: /robot-media/nao/scripts/nao_obstacle_walk.py
+    type: file
+  - label: square_walk.py
+    file: /robot-media/nao/scripts/square_walk.py
+    type: file
+  - label: ros2_full_demo.py
+    file: /robot-media/nao/scripts/ros2_full_demo.py
+    type: file
+---
+
+### Executive summary
+
+**NAO** — Humanoid Robot Platform
+
+| Field               | Value                                                |
+| ------------------- | ---------------------------------------------------- |
+| Platform Type       | Humanoid Robot                                       |
+| Manufacturer        | SoftBank Robotics                                    |
+| Model               | NAO V6                                               |
+| Lab Inventory ID    | _TBD_                                                |
+| Current Status      | OPERATIONAL                                          |
+| Last Validated      | 2026-03-26                                           |
+| Location            | CRS Lab – Brickyard 2nd Floor                        |
+| Primary Maintainers | Ali Kefel, Taha Saheen, Nick Huynh, Faisal Alyousefi |
+
+The NAO is a small humanoid robot platform with multiple units in the lab. Assessment and repair work focused on battery health, factory resets for units without login credentials, and establishing a software workflow via Choreographe and SSH.
+
+## Hardware
+
+### Physical overview
+
+<ImageGrid>
+  <Image
+    src="/robot-media/nao/images/nao-thumbnail.jpg"
+    alt="NAO robot front view"
+  />
+  <Image
+    src="/robot-media/nao/images/nao_batteries.JPG"
+    alt="NAO battery packs"
+  />
+</ImageGrid>
+
+<Image
+  src="/robot-media/nao/images/nao_lipo_case.JPG"
+  alt="NAO LiPo battery case"
+/>
+
+### Specifications
+
+| Component          | Details                                |
+| ------------------ | -------------------------------------- |
+| Height             | 58 cm                                  |
+| Weight             | 5.4 kg                                 |
+| Degrees of Freedom | 25 DOF                                 |
+| Battery            | LiPo, ~60 min runtime                  |
+| Connectivity       | Wi-Fi, Ethernet                        |
+| CPU                | Intel Atom @ 1.91 GHz                  |
+| OS                 | NAOqi OS (Linux-based)                 |
+| Programming        | Python 2/3 via NAOqi SDK, Choreographe |
+
+### Health report
+
+| Component         | Status   | Notes                                                |
+| ----------------- | -------- | ---------------------------------------------------- |
+| Chassis           | OK       | Minor cosmetic damage on some units                  |
+| Fingers           | Degraded | Broken finger on one unit — attempted super glue fix |
+| Battery (Unit 1)  | Degraded | Does not hold charge, drains quickly even on charger |
+| Battery (Unit 2)  | Unknown  | Not yet tested                                       |
+| Motors / Joints   | OK       | Movement confirmed functional via Choreographe       |
+| Head Panel Covers | OK       | Located and confirmed present for all units          |
+| NAOqi OS          | OK       | Successfully flashed to v2.8.7 factory settings      |
+| Speakers          | OK       | Boot audio confirmed                                 |
+| Network           | OK       | SSH and Choreographe connection stable               |
+
+## Software environment
+
+### Architecture
+
+NAO does not run ROS. The robot runs NAOqi OS (a Gentoo-based Linux distribution) with NAOqi 2.8 as its middleware. There are three ways to program NAO:
+
+1. **NAOqi Python SDK** — Write Python scripts that call NAOqi modules directly (simplest, best for standalone demos)
+2. **Choregraphe** — Visual drag-and-drop programming environment (good for quick prototyping and monitoring)
+3. **ROS 2 Bridge** — Run ROS 2 on an external Ubuntu machine and communicate with NAO over the network (best for advanced robotics capabilities like SLAM, navigation, multi-robot coordination)
+
+### SSH access
+
+```bash
+ssh nao@<robot-ip>
+# Default password: nao
+```
+
+Once connected, Python scripts can be run directly on the onboard terminal using the built-in NAOqi modules. Verify NAOqi is running with:
+
+```bash
+python -c "from naoqi import ALProxy; tts = ALProxy('ALTextToSpeech', '127.0.0.1', 9559); tts.say('hello')"
+```
+
+If NAO speaks, the system is ready.
+
+### Choregraphe
+
+Choregraphe is the official graphical programming environment for NAO. It requires an **x86-64 architecture** to run — ARM-based machines (e.g. Apple Silicon) are not supported.
+
+#### Installation
+
+1. Download Choregraphe from the [SoftBank Robotics community portal](https://community.aldebaran.com/) (requires an account)
+2. Select the version matching your NAOqi OS version (2.8.x for NAO V6)
+3. Install the `.dmg` (macOS x86), `.exe` (Windows), or `.tar.gz` (Linux) package
+4. On Linux, install required dependencies:
+
+```bash
+sudo apt install libpng12-0 libssl1.0.0
+```
+
+5. Launch Choregraphe and connect to NAO by entering the robot's IP address in the connection dialog
+
+<Callout type="warning">
+  Choregraphe only runs on x86-64 machines. If you are on an ARM-based Mac
+  (M1/M2/M3/M4), you will need to use an x86-64 laptop or a virtual machine.
+</Callout>
+
+#### What you can do with Choregraphe
+
+- **Robot View tab** — Monitor battery health, joint status, and sensor readings in real time
+- **Behavior editor** — Drag-and-drop blocks to create movement sequences, speech, and logic
+- **Timeline editor** — Keyframe-based animation editing for precise motion control
+- **Deploy behaviors** — Upload and run behaviors directly on NAO
+- **Dialog editor** — Create conversational flows with speech recognition triggers
+
+### NAOqi Python SDK (direct control)
+
+The NAOqi Python SDK is the primary workflow for scripted control of NAO. Any module exposed by NAOqi (motion, speech, posture, behaviors, LEDs, sensors) can be driven programmatically without needing Choregraphe.
+
+#### Running scripts on NAO
+
+Scripts are stored on the robot at `/home/nao/scripts/`. Copy them from your local machine using scp:
+
+```bash
+scp my_script.py nao@<robot-ip>:/home/nao/scripts/
+```
+
+Then SSH in and run:
+
+```bash
+ssh nao@<robot-ip>
+python /home/nao/scripts/my_script.py
+```
+
+#### Script structure
+
+All NAOqi scripts follow this pattern: connect to proxy modules, wake up the robot, perform actions, then rest.
+
+```python
+from naoqi import ALProxy
+import time
+
+NAO_IP = "127.0.0.1"  # Use 127.0.0.1 when running on NAO, or the NAO's IP when running remotely
+
+motion = ALProxy("ALMotion", NAO_IP, 9559)
+posture = ALProxy("ALRobotPosture", NAO_IP, 9559)
+tts = ALProxy("ALTextToSpeech", NAO_IP, 9559)
+
+motion.wakeUp()
+posture.goToPosture("Stand", 0.5)
+tts.say("Hello, I am NAO!")
+
+# Move right arm up (angles in radians)
+motion.angleInterpolation("RShoulderPitch", [0.0], [2.0], True)
+time.sleep(1)
+
+# Move right arm back down
+motion.angleInterpolation("RShoulderPitch", [1.5], [2.0], True)
+
+posture.goToPosture("Sit", 0.5)
+motion.rest()
+```
+
+#### Key NAOqi modules
+
+| Module            | Purpose                           | Common Methods                                                                        |
+| ----------------- | --------------------------------- | ------------------------------------------------------------------------------------- |
+| ALMotion          | Joint control, walking, stiffness | `wakeUp()`, `rest()`, `angleInterpolation()`, `moveTo()`, `openHand()`, `closeHand()` |
+| ALRobotPosture    | Predefined postures               | `goToPosture("Stand"/"Sit"/"Crouch", speed)`                                          |
+| ALTextToSpeech    | Speech output                     | `say(text)`                                                                           |
+| ALAnimatedSpeech  | Speech with synchronized gestures | `say(text_with_annotations)`                                                          |
+| ALLeds            | LED control (eyes, ears, chest)   | `fadeRGB(group, color_hex, duration)`, `rasta(duration)`                              |
+| ALBehaviorManager | Prebuilt behavior playback        | `runBehavior(name)`, `getInstalledBehaviors()`                                        |
+| ALMemory          | Sensor data access                | `getData(key)`                                                                        |
+| ALSonar           | Sonar sensor activation           | `subscribe(name)`, `unsubscribe(name)`                                                |
+| ALTracker         | Face/object tracking              | `registerTarget(type, size)`, `track(type)`                                           |
+| ALVideoDevice     | Camera access                     | —                                                                                     |
+
+#### Important joint names
+
+NAO joints are specified per-side. There is no generic "HipRoll" — you must use "LHipRoll" or "RHipRoll". All angles are in radians (most joints range from approximately -1.5 to 1.5 radians).
+
+- **Head:** HeadYaw, HeadPitch
+- **Shoulders:** RShoulderPitch, LShoulderPitch, RShoulderRoll, LShoulderRoll
+- **Elbows:** RElbowRoll, LElbowRoll, RElbowYaw, LElbowYaw
+- **Wrists:** RWristYaw, LWristYaw
+- **Hands:** RHand, LHand (controlled via `openHand`/`closeHand`)
+- **Hips:** RHipRoll, LHipRoll, RHipPitch, LHipPitch, RHipYawPitch, LHipYawPitch
+
+#### Animated speech
+
+ALAnimatedSpeech lets you trigger built-in animations while NAO speaks:
+
+```python
+animated_speech = ALProxy("ALAnimatedSpeech", "127.0.0.1", 9559)
+animated_speech.say("^start(animations/Stand/Gestures/Hey_1) Hello there!")
+```
+
+To list all available animations:
+
+```python
+bm = ALProxy("ALBehaviorManager", "127.0.0.1", 9559)
+for b in sorted(bm.getInstalledBehaviors()):
+    print(b)
+```
+
+#### Running behaviors non-blocking
+
+Use `.post` to run a behavior in the background while doing other things simultaneously:
+
+```python
+bm = ALProxy("ALBehaviorManager", "127.0.0.1", 9559)
+tts = ALProxy("ALTextToSpeech", "127.0.0.1", 9559)
+
+bm.post.runBehavior("animations/Stand/Emotions/Positive/Happy_4")
+tts.say("I am happy!")  # Runs at the same time as the behavior
+```
+
+#### Reading sensors
+
+```python
+memory = ALProxy("ALMemory", "127.0.0.1", 9559)
+
+# Head touch sensors
+front = memory.getData("Device/SubDeviceList/Head/Touch/Front/Sensor/Value")
+
+# Foot bumpers
+left_bumper = memory.getData("Device/SubDeviceList/LFoot/Bumper/Left/Sensor/Value")
+
+# Sonar (must subscribe first)
+sonar = ALProxy("ALSonar", "127.0.0.1", 9559)
+sonar.subscribe("my_app")
+left_sonar = memory.getData("Device/SubDeviceList/US/Left/Sensor/Value")
+sonar.unsubscribe("my_app")
+
+# Battery
+battery = memory.getData("Device/SubDeviceList/Battery/Charge/Sensor/Value")
+```
+
+### ROS 2 Humble via Docker (NAOqi ROS bridge)
+
+The ROS 2 bridge (`naoqi_driver2`) translates between NAOqi services on the robot and standard ROS 2 topics and services. ROS 2 runs on an external Ubuntu machine and communicates with NAO over WiFi.
+
+```
+Ubuntu Laptop (Docker Container)              NAO V6 Robot
+┌────────────────────────────────┐   WiFi    ┌──────────────────┐
+│  ROS 2 Humble                  │ <──────>  │  NAOqi 2.8       │
+│  naoqi_driver2 (bridge)        │ port 9559 │  Python 2.7      │
+│  Your ROS 2 nodes / scripts    │           │  NAOqi Python SDK│
+│  rviz2 (visualization)         │           │  Sensors/Motors  │
+└────────────────────────────────┘           └──────────────────┘
+```
+
+#### Why Docker
+
+Building naoqi_driver2 natively on Ubuntu 22.04 fails due to linker conflicts: OpenCV links against libgdal, which transitively pulls in libcurl, libtiff, and libnetcdf, producing hundreds of undefined reference errors. Running the build inside a Docker container with a clean ROS 2 Humble environment avoids these conflicts entirely.
+
+#### Initial setup (one-time)
+
+**1. Install Docker on the Ubuntu laptop:**
+
+```bash
+sudo snap install docker
+sudo usermod -aG docker $USER
+newgrp docker
+```
+
+**2. Clone the source code (on the Ubuntu laptop, not in Docker):**
+
+```bash
+mkdir -p ~/Desktop/NAO/nao_ws/src
+cd ~/Desktop/NAO/nao_ws/src
+git clone https://github.com/ros-naoqi/naoqi_driver2.git
+git clone https://github.com/ros-naoqi/naoqi_bridge_msgs2.git
+```
+
+**3. Create the Docker container with the source code mounted:**
+
+```bash
+sudo docker run -it --network host \
+  -v /home/<your_username>/Desktop/NAO/nao_ws/src:/nao_ws/src \
+  osrf/ros:humble-desktop bash
+```
+
+Replace `<your_username>` with your actual Linux username. The `--network host` flag lets the container access NAO on the local network.
+
+**4. Inside the container, install dependencies and build:**
+
+```bash
+source /opt/ros/humble/setup.bash
+apt update
+apt install -y python3-colcon-common-extensions python3-pip git
+pip3 install empy==3.3.4 catkin_pkg lark
+apt install -y ros-humble-naoqi-libqi ros-humble-naoqi-libqicore 2>/dev/null
+cd /nao_ws
+rosdep install --from-paths src --ignore-src -r -y
+colcon build
+source install/setup.bash
+```
+
+The build should complete with 2 packages finished. Warnings about naoqi_libqicore include directories and Boost pragma messages are normal.
+
+**5. Note the container ID for future use:**
+
+```bash
+exit
+sudo docker ps -a
+```
+
+Save the CONTAINER ID for the `osrf/ros:humble-desktop` image.
+
+#### Daily usage — starting the ROS 2 bridge
+
+**Step 1: Fix Docker path if needed:**
+
+```bash
+export PATH=$PATH:/snap/bin
+```
+
+**Step 2: Start the Docker container:**
+
+```bash
+sudo docker start <container_id>
+```
+
+**Step 3: Terminal 1 — Launch the bridge:**
+
+```bash
+sudo docker exec -it <container_id> bash
+source /opt/ros/humble/setup.bash
+source /nao_ws/install/setup.bash
+export NAO_IP=<robot-ip>
+ros2 launch naoqi_driver naoqi_driver.launch.py nao_ip:=$NAO_IP nao_port:=9559
+```
+
+Leave this terminal running.
+
+**Step 4: Terminal 2 — Run ROS 2 commands:**
+
+```bash
+sudo docker exec -it <container_id> bash
+source /opt/ros/humble/setup.bash
+source /nao_ws/install/setup.bash
+```
+
+**Step 5: Wake up NAO (required before any movement commands):**
+
+From a separate terminal on the laptop (not inside Docker):
+
+```bash
+ssh nao@<robot-ip> "python -c \"from naoqi import ALProxy; ALProxy('ALMotion', '127.0.0.1', 9559).wakeUp()\""
+```
+
+#### ROS 2 commands reference
+
+```bash
+# List all available topics
+ros2 topic list
+
+# Verify data is flowing from NAO
+ros2 topic echo /joint_states --once
+
+# Make NAO speak
+ros2 topic pub --once /speech std_msgs/msg/String "{data: 'Hello from ROS 2'}"
+
+# Move a joint (raise right arm)
+ros2 topic pub --once /joint_angles naoqi_bridge_msgs/msg/JointAnglesWithSpeed \
+  "{joint_names: ['RShoulderPitch'], joint_angles: [0.0], speed: 0.2}"
+
+# Move arm back down
+ros2 topic pub --once /joint_angles naoqi_bridge_msgs/msg/JointAnglesWithSpeed \
+  "{joint_names: ['RShoulderPitch'], joint_angles: [1.5], speed: 0.2}"
+
+# Walk forward (NAO must be standing and awake)
+ros2 topic pub --once /cmd_vel geometry_msgs/msg/Twist \
+  "{linear: {x: 0.2, y: 0.0, z: 0.0}, angular: {x: 0.0, y: 0.0, z: 0.0}}"
+
+# Stop walking
+ros2 topic pub --once /cmd_vel geometry_msgs/msg/Twist \
+  "{linear: {x: 0.0, y: 0.0, z: 0.0}, angular: {x: 0.0, y: 0.0, z: 0.0}}"
+
+# Turn in place
+ros2 topic pub --once /cmd_vel geometry_msgs/msg/Twist \
+  "{linear: {x: 0.0, y: 0.0, z: 0.0}, angular: {x: 0.0, y: 0.0, z: 1.0}}"
+```
+
+#### Available ROS 2 topics
+
+| Topic                    | Type                                   | Description               |
+| ------------------------ | -------------------------------------- | ------------------------- |
+| /joint_states            | sensor_msgs/JointState                 | Current joint positions   |
+| /joint_angles            | naoqi_bridge_msgs/JointAnglesWithSpeed | Send joint commands       |
+| /cmd_vel                 | geometry_msgs/Twist                    | Walking velocity commands |
+| /speech                  | std_msgs/String                        | Text-to-speech            |
+| /camera/front/image_raw  | sensor_msgs/Image                      | Front camera feed         |
+| /camera/bottom/image_raw | sensor_msgs/Image                      | Bottom camera feed        |
+| /sonar/left              | sensor_msgs/Range                      | Left sonar distance       |
+| /sonar/right             | sensor_msgs/Range                      | Right sonar distance      |
+| /odom                    | nav_msgs/Odometry                      | Robot odometry            |
+| /imu/torso               | sensor_msgs/Imu                        | IMU data                  |
+| /head_touch              | naoqi_bridge_msgs/HeadTouch            | Head touch sensors        |
+| /bumper                  | —                                      | Foot bumper events        |
+| /hand_touch              | —                                      | Hand touch sensors        |
+
+#### Running ROS 2 Python scripts
+
+Copy a script into the Docker container and run it:
+
+```bash
+sudo docker cp my_ros2_script.py <container_id>:/nao_ws/
+sudo docker exec -it <container_id> bash
+source /opt/ros/humble/setup.bash
+source /nao_ws/install/setup.bash
+python3 /nao_ws/my_ros2_script.py
+```
+
+Example ROS 2 Python node:
+
+```python
+#!/usr/bin/env python3
+import rclpy
+from rclpy.node import Node
+from std_msgs.msg import String
+from naoqi_bridge_msgs.msg import JointAnglesWithSpeed
+import time
+
+class MyNaoNode(Node):
+    def __init__(self):
+        super().__init__('my_nao_node')
+        self.speech_pub = self.create_publisher(String, '/speech', 10)
+        self.joint_pub = self.create_publisher(
+            JointAnglesWithSpeed, '/joint_angles', 10
+        )
+        time.sleep(2)  # Wait for publishers to connect
+        self.run()
+
+    def speak(self, text):
+        msg = String()
+        msg.data = text
+        self.speech_pub.publish(msg)
+        time.sleep(3)
+
+    def move_joint(self, names, angles, speed=0.2):
+        msg = JointAnglesWithSpeed()
+        msg.joint_names = names
+        msg.joint_angles = [float(a) for a in angles]
+        msg.speed = float(speed)
+        self.joint_pub.publish(msg)
+        time.sleep(2)
+
+    def run(self):
+        self.speak("Hello from my custom ROS 2 node!")
+        self.move_joint(['RShoulderPitch'], [0.0], 0.2)
+        self.move_joint(['RShoulderPitch'], [1.5], 0.2)
+
+def main():
+    rclpy.init()
+    node = MyNaoNode()
+    node.destroy_node()
+    rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()
+```
+
+## How-To
+
+### Boot procedure
+
+1. Insert a charged battery pack
+2. Hold the chest button for 3 seconds
+3. Wait for the boot audio — NAO will announce its IP address
+4. Connect via Choreographe or SSH using the announced IP
+
+<Callout type="warning">
+  Always place NAO on a stable, flat surface before powering on. Keep hands
+  clear of joints during startup.
+</Callout>
+
+### Flash to factory settings
+
+Required when the robot has unknown login credentials or is in a bad state.
+
+1. Format a USB drive to FAT32
+2. Download the NAO V6 2.8.7 image and copy it to the USB root
+3. Power off the robot
+4. Insert the USB into NAO's head port
+5. Hold the chest button until the robot boots from USB
+6. Follow on-screen Choreographe prompts to complete the flash
+
+<Callout type="tip">
+  After flashing, the robot boots normally and is accessible with default
+  credentials: `nao` / `nao`.
+</Callout>
+
+### Running a dance via SSH
+
+```bash
+ssh nao@<robot-ip>
+python /path/to/dance_script.py
+```
+
+The robot can execute pre-built behaviors using `ALBehaviorManager` or custom motion sequences via `ALMotion`.
+
+<Video src="/robot-media/nao/videos/nao_dance_video.MOV" />
+
+### Reset procedure
+
+<Video src="/robot-media/nao/videos/starting_nao_reset.MOV" />
+
+<Video src="/robot-media/nao/videos/nao_during_reset.MOV" />
+
+### Touch / movement test
+
+<Video src="/robot-media/nao/videos/nao_touching_test.MOV" />
+
+## Troubleshooting
+
+### NAO not reachable
+
+Press the NAO chest button to hear its current IP. Verify connectivity:
+
+```bash
+ping <robot-ip>
+```
+
+Ensure both the laptop and NAO are on the same WiFi network. Some routers isolate 2.4 GHz and 5 GHz bands on different subnets.
+
+### NAO won't move via ROS 2
+
+NAO must be woken up (stiffness enabled) before it will respond to movement commands:
+
+```bash
+ssh nao@<robot-ip> "python -c \"from naoqi import ALProxy; ALProxy('ALMotion', '127.0.0.1', 9559).wakeUp()\""
+```
+
+### GPG key errors during apt update (inside Docker)
+
+The ROS 2 apt repository signing key expires periodically. To fix:
+
+```bash
+sudo rm /usr/share/keyrings/ros-archive-keyring.gpg
+sudo curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key \
+  | sudo gpg --dearmor -o /usr/share/keyrings/ros-archive-keyring.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] \
+  http://packages.ros.org/ros2/ubuntu jammy main" \
+  | sudo tee /etc/apt/sources.list.d/ros2.list
+sudo apt update
+```
+
+### Docker command not found
+
+Docker installed via snap may not be in the default PATH:
+
+```bash
+export PATH=$PATH:/snap/bin
+```
+
+### Bridge crashes or won't start
+
+Kill any lingering processes inside the container and relaunch:
+
+```bash
+kill -9 $(pgrep -f naoqi_driver)
+ros2 launch naoqi_driver naoqi_driver.launch.py nao_ip:=$NAO_IP nao_port:=9559
+```
+
+### Container lost or deleted
+
+If you need to recreate the container from scratch, follow the one-time setup steps in the ROS 2 section above.
+
+## Attempted fixes
+
+<RepairEntry title="Broken finger repair" date="Week 5" outcome="partial">
+  Attempted to repair a broken finger joint on one of the NAO units using super
+  glue. The repair held structurally but the finger's range of motion remains
+  limited.
+</RepairEntry>
+
+<RepairEntry title="Battery pack charge test" date="Week 5" outcome="failed">
+  Tested one of the battery packs — it did not hold charge. NAO powered on with
+  the faulty pack but ran out of charge quickly even while plugged into the
+  charger. The safety team has paused further battery work pending review.
+
+  <Image src="/robot-media/nao/images/nao_batteries.JPG" alt="NAO battery packs under test" />
+</RepairEntry>
+
+<RepairEntry
+  title="Head panel cover inspection"
+  date="Week 5"
+  outcome="success"
+>
+  Located and confirmed the panel covers for the back of all NAO units' heads.
+  All covers accounted for.
+</RepairEntry>
+
+<RepairEntry title="Unit assessment" date="Week 5" outcome="partial">
+  Tested all available NAO units. One robot appeared fully functional with no
+  obvious issues. The others had problems — one triggered an error on boot that
+  was resolved by a factory-requested reboot/flash.
+
+  <Callout type="info">
+    Lab access was intermittently blocked during this week due to the robotics
+    lab being under repair, which limited progress on MOVO in parallel.
+  </Callout>
+</RepairEntry>
+
+<RepairEntry title="USB drive flash — credential recovery" date="Week 5" outcome="success">
+  Formatted a USB drive and used it to reset NAO units that we did not have
+  login credentials for. Robot successfully reset to factory settings and no
+  longer gave an error on boot.
+
+  <Callout type="tip">
+    Full flash guide linked in the Resources section above.
+  </Callout>
+</RepairEntry>
+
+<RepairEntry
+  title="Choreographe install on x86-64 machine"
+  date="Week 5"
+  outcome="partial"
+>
+  Choreographe requires an x86-64 architecture — ARM machines are not supported.
+  Work was blocked until an x86-64 laptop was sourced. Commands could not be
+  executed until this was resolved.
+</RepairEntry>
+
+<RepairEntry
+  title="Factory flash and first boot"
+  date="Week 6"
+  outcome="success"
+>
+  Flashed one NAO to factory settings via USB. Robot booted normally and was
+  accessible with default credentials. Confirmed full boot sequence and network
+  availability.
+</RepairEntry>
+
+<RepairEntry
+  title="Choreographe — greeting motion and speech"
+  date="Week 6"
+  outcome="success"
+>
+  Installed Choreographe on an x86-64 laptop. Connected to NAO and successfully
+  deployed a greeting motion and speech behavior. Battery health was also
+  verified via the Robot View tab.
+</RepairEntry>
+
+<RepairEntry title="SSH movement scripts and dance" date="Week 6" outcome="success">
+  SSH'd into NAO V6 and ran movement scripts using built-in NAOqi modules
+  (`ALBehaviorManager`, `ALRobotPosture`, `ALMotion`). Also executed a Python
+  dance script directly from the onboard terminal — robot danced successfully.
+
+With the NAOqi Python SDK, we are able to fully control the robot by writing
+Python scripts that connect to the robot over the network. Any module exposed
+by NAOqi (motion, speech, posture, behaviors, LEDs, sensors) can be driven
+programmatically without needing Choreographe, making it the primary workflow
+for scripted control.
+
+  <Video src="/robot-media/nao/videos/nao_dance_video.MOV" />
+</RepairEntry>
+
+### Echo — boot failure investigation
+
+Echo would not boot, with downstream subsystems (legs, arms) reporting as missing. The attempts below isolated the fault step-by-step by swapping parts between Echo, Bran, and Yoda.
+
+<Callout type="info">
+  **Robot:** Echo &middot; **Symptom:** Wouldn't boot; legs/arms reported missing &middot; **Root cause:** Left arm shorting the legs/power rail &middot; **Current state:** Left arm unplugged; rest of robot functional. Left-arm assembly needs further investigation/repair.
+
+**Lesson learned:** PCB swaps between NAO units are not a valid diagnostic — Error 317 ("no sensors found") will appear on any cross-unit swap regardless of board health, because boards are tied to per-unit firmware/calibration. Use per-limb unplugging to isolate shorts before suspecting the mainboard.
+
+</Callout>
+
+<RepairEntry title="Echo #1 — Swap Echo's head onto Bran's body" date="2026-04-28" outcome="success">
+  **Action:** Removed Echo's head and mounted it on Bran's body.
+
+**Result:** Robot worked fine.
+
+**Conclusion:** Echo's head is not the issue — the problem is in Echo's body.
+
+</RepairEntry>
+
+<RepairEntry title="Echo #2 — Swap Echo's frontplate onto Bran's body" date="2026-04-28" outcome="success">
+  **Action:** Took Echo's frontplate and mounted it on Bran's body.
+
+**Result:** Works.
+
+**Conclusion:** Frontplate is not the issue.
+
+</RepairEntry>
+
+<RepairEntry title="Echo #3 — Check the fuse" date="2026-04-28" outcome="success">
+  **Action:** Inspected and tested the 3.5A T AC250V fuse on Echo's power board with a multimeter.
+
+**Result:** Fuse is good.
+
+**Conclusion:** Fuse is not the issue.
+
+</RepairEntry>
+
+<RepairEntry title="Echo #4 — Check the power board" date="2026-04-28" outcome="success">
+  **Action:** Multimeter checks on Echo's power board.
+
+**Result:** Clean readings.
+
+**Conclusion:** Power board is not the issue.
+
+</RepairEntry>
+
+<RepairEntry title="Echo #5 — Put Echo's front board in Bran (1st try)" date="2026-04-28" outcome="partial">
+  **Action:** Moved Echo's front PCB into Bran's body.
+
+**Result:** Bran throws errors — "no legs, no arms…"
+
+**Conclusion:** Inconclusive at this stage; could be Echo's board or a swap incompatibility.
+
+</RepairEntry>
+
+<RepairEntry title="Echo #6 — Restore Bran's original board" date="2026-04-28" outcome="success">
+  **Action:** Put Bran's original board back into Bran.
+
+**Result:** Boots fine.
+
+**Conclusion:** Confirms Bran itself is healthy.
+
+</RepairEntry>
+
+<RepairEntry title="Echo #7 — Put Bran's board in Echo" date="2026-04-28" outcome="partial">
+  **Action:** Moved Bran's (known-good) board into Echo.
+
+**Result:** Nothing — no lights, no response.
+
+**Conclusion:** Inconclusive — could be Echo's body or PCB swap incompatibility.
+
+</RepairEntry>
+
+<RepairEntry title="Echo #8 — Re-try Echo's board in Bran (2nd and 3rd time)" date="2026-04-28" outcome="partial">
+  **Action:** Plugged Echo's board into Bran two more times.
+
+**Result:** Same errors each time — "no legs, no arms…"
+
+**Conclusion:** Behavior is consistent but still doesn't isolate the fault.
+
+</RepairEntry>
+
+<RepairEntry title="Echo #9 — Cross-test Yoda ↔ Bran PCBs" date="2026-04-28" outcome="success">
+  **Action:** Put Yoda's PCB in Bran, and Bran's PCB in Yoda.
+
+**Result:** Both threw Error 317: no sensors found.
+
+**Conclusion:** PCBs are not cross-compatible between units (likely per-unit firmware/calibration). Echo's PCB is probably fine — the earlier swap failures were not proof of a bad board.
+
+</RepairEntry>
+
+<RepairEntry title="Echo #10 — Unplug Echo's left arm" date="2026-04-28" outcome="success">
+  **Action:** Disconnected Echo's left arm and powered on.
+
+**Result:** Echo boots up successfully. Left arm hangs unpowered, rest of robot functional.
+
+**Conclusion:** Root cause — Echo's left arm was shorting out the legs. Issue is localized to the left-arm assembly.
+
+</RepairEntry>
+
+## File locations
+
+| Path                        | Description                                             |
+| --------------------------- | ------------------------------------------------------- |
+| `/home/nao/scripts/`        | NAOqi scripts stored on the robot                       |
+| `~/Desktop/NAO/nao_ws/src/` | Source code on the Ubuntu laptop                        |
+| `/nao_ws/`                  | ROS 2 workspace inside Docker                           |
+| `/nao_ws/`                  | ROS 2 scripts inside Docker (copied in via `docker cp`) |
+
+## Maintenance
+
+### Change log
+
+| Date       | Change                                                                                           | Author    |
+| ---------- | ------------------------------------------------------------------------------------------------ | --------- |
+| 2026-04-28 | Logged Echo boot-failure investigation (10 attempts) — root-caused to left-arm short             | Ali Kefel |
+| 2026-04-06 | Added NAOqi Python SDK reference, Choregraphe install guide, ROS 2 bridge setup, troubleshooting | Ali Kefel |
+| 2026-03-26 | Documented Week 6 progress: factory flash, Choreographe, SSH scripts, dance                      | Ali Kefel |
+| 2026-03-26 | Documented Week 5 findings: battery failure, unit assessment, flash via USB                      | Ali Kefel |
+| 2026-03-26 | Added Attempted Fixes section with repair cards                                                  | Ali Kefel |
+| 2026-02-10 | Wiki page created, initial template                                                              | Ali Kefel |
