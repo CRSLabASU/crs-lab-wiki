@@ -1,0 +1,181 @@
+---
+name: Freenove Big Hexapod
+platform: Six-Legged Walking Robot
+status: UNDER ASSESSMENT
+summary: "Raspberry Pi–based six-legged robot kit with camera, ultrasonic ranging and balance control, programmed in Python. Initial lab assessment pending."
+resources:
+  - label: Freenove FNK0052 Tutorial
+    file: https://docs.freenove.com/projects/fnk0052/en/latest/fnk0052/codes/tutorial/Welcome.html
+    type: doc
+  - label: Software Installation (Chapter 1)
+    file: https://docs.freenove.com/projects/fnk0052/en/latest/fnk0052/codes/tutorial/1_Installation.html
+    type: doc
+  - label: Robot Assembly (Chapter 2)
+    file: https://docs.freenove.com/projects/fnk0052/en/latest/fnk0052/codes/tutorial/2_Assembly.html
+    type: doc
+  - label: Hexapod Control (Chapter 4)
+    file: https://docs.freenove.com/projects/fnk0052/en/latest/fnk0052/codes/tutorial/4_Hexapod_Robot.html
+    type: doc
+  - label: Source Code (GitHub)
+    file: https://github.com/Freenove/Freenove_Big_Hexapod_Robot_Kit_for_Raspberry_Pi
+    type: doc
+  - label: Product Page
+    file: https://store.freenove.com/products/fnk0052
+    type: doc
+  - label: Tutorial.pdf
+    file: https://github.com/Freenove/Freenove_Big_Hexapod_Robot_Kit_for_Raspberry_Pi/blob/master/Tutorial.pdf
+    type: file
+  - label: About_Battery.pdf
+    file: https://github.com/Freenove/Freenove_Big_Hexapod_Robot_Kit_for_Raspberry_Pi/blob/master/About_Battery.pdf
+    type: file
+  draft: true
+---
+
+### Executive summary
+
+**Freenove Big Hexapod** — Six-Legged Walking Robot
+
+| Field               | Value                                            |
+| ------------------- | ------------------------------------------------ |
+| Platform Type       | Hexapod (legged) robot kit                       |
+| Manufacturer        | Freenove                                         |
+| Model               | Big Hexapod Robot Kit for Raspberry Pi (FNK0052) |
+| Raspberry Pi        | _TBD_                                            |
+| Connection Board    | _TBD_ (PCB V1.0 or V2.0)                         |
+| Lab Inventory ID    | _TBD_                                            |
+| Current Status      | UNDER ASSESSMENT                                 |
+| Last Validated      | _TBD_                                            |
+| Location            | _TBD_                                            |
+| Primary Maintainers | _TBD_                                            |
+
+The Freenove Big Hexapod is a six-legged walking robot kit driven by a Raspberry Pi. A server program on the Pi controls the legs, camera and sensors, and a client app on a computer or phone drives it over Wi-Fi.
+
+## Hardware
+
+### Specifications
+
+| Component         | Details                                                                           |
+| ----------------- | --------------------------------------------------------------------------------- |
+| Controller        | Raspberry Pi 5 / 4B / 3B+ / 3B / 3A+ recommended (not included)                   |
+| Also compatible   | Pi 2B / 1B+ / 1A+ / Zero 2 W / Zero W / Zero 1.3 (extra parts needed)             |
+| Legs              | 6, with servos at each leg's hip and lower joints                                 |
+| Battery           | 4 × 3.7 V 18650 rechargeable, flat top (not included)                             |
+| Sensors & modules | Camera, ultrasonic ranging module, MPU6050 IMU, LED module                        |
+| Connection board  | PCB V1.0 or V2.0                                                                  |
+| Programming       | Python 3                                                                          |
+| Control apps      | PC client (Windows, macOS, Raspberry Pi OS), Freenove app (Android 5.0+, iOS 10+) |
+
+<Callout type="note">
+  The servos and the Raspberry Pi run on separate power supplies. Turning off
+  the servos does not shut down the Pi.
+</Callout>
+
+### Health report
+
+| Component         | Status  | Notes                               |
+| ----------------- | ------- | ----------------------------------- |
+| Assembly          | Unknown | Check legs, screws and servo wiring |
+| Servos            | Unknown | Not yet tested                      |
+| Battery           | Unknown | Record 18650 cell condition         |
+| Raspberry Pi      | Unknown | Record model and OS                 |
+| Camera            | Unknown | Not yet tested                      |
+| Ultrasonic sensor | Unknown | Not yet tested                      |
+| Calibration       | Unknown | Calibrate legs before walking       |
+
+## Software environment
+
+### Installation (on the Raspberry Pi)
+
+Use Raspberry Pi OS with Desktop. All code is Python 3 — running it with Python 2 may cause errors.
+
+```bash
+cd
+git clone --depth 1 https://github.com/Freenove/Freenove_Big_Hexapod_Robot_Kit_for_Raspberry_Pi.git
+cd ~/Freenove_Big_Hexapod_Robot_Kit_for_Raspberry_Pi/Code
+sudo python setup.py
+```
+
+The setup script installs the required libraries, including `rpi_ws281x` and PyQt5. On a Raspberry Pi 5 it asks which camera port to use (`cam0` or `cam1`).
+
+Increase the I2C speed by adding this line to `/boot/firmware/config.txt`:
+
+```text
+i2c_arm_baudrate=400000
+```
+
+Then reboot:
+
+```bash
+sudo reboot
+```
+
+<Callout type="tip">
+  Installing the libraries takes a while. Power the Pi from a USB power supply
+  during installation; batteries are only needed to drive the servos, LEDs and
+  other peripherals.
+</Callout>
+
+## How-To
+
+### Start the robot server
+
+On the Raspberry Pi:
+
+```bash
+cd ~/Freenove_Big_Hexapod_Robot_Kit_for_Raspberry_Pi/Code/Server
+sudo python main.py
+```
+
+To run without the server window (for example over SSH), use `sudo python main.py -tn`.
+
+### Connect the client
+
+Run the client on a computer, enter the Pi's IP address and connect. On macOS, run `setup_macos.py` from the `Code` folder first, then start `python3 Main.py` from `Code/Client`. On Windows, run `Client.exe` or install with `setup_windows.py`.
+
+| Control          | Key / input |
+| ---------------- | ----------- |
+| Move / turn      | W A S D     |
+| Video on/off     | V           |
+| Relax servos     | R           |
+| LED control      | L           |
+| Balance mode     | B           |
+| Face recognition | F           |
+| Ultrasonic       | U           |
+| Buzzer           | Y           |
+| Head / speed     | Sliders     |
+
+### Calibrate the legs
+
+1. Place the robot on the calibration paper in the position shown in the tutorial
+2. Connect the client to the server
+3. Click **Calibration**
+4. Adjust each of the six feet until they line up with the marks on the paper
+5. Click **Save**
+
+<Callout type="warning" title="Calibrate before walking">
+  Poor calibration affects how the robot walks. Recalibrate whenever the legs
+  are reassembled or movement looks uneven.
+</Callout>
+
+## Troubleshooting
+
+### Servo arms installed at the wrong angle
+
+Servos must be set to their installation angle before the servo arms are attached. With the servos connected, run:
+
+```bash
+cd ~/Freenove_Big_Hexapod_Robot_Kit_for_Raspberry_Pi/Code/Server
+sudo python Servo.py
+```
+
+Do not pull on servo wires while assembling.
+
+## Attempted fixes
+
+No repair attempts recorded yet.
+
+## Maintenance
+
+- Record the Raspberry Pi model, OS version and connection board version
+- Check 18650 cells before each session and follow Freenove's battery guide
+- Recalibrate the legs after any reassembly

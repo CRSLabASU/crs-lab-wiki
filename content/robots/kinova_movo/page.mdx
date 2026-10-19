@@ -1,0 +1,322 @@
+---
+name: Kinova MOVO
+nickname: "The Tank"
+platform: Mobile Manipulation Platform
+status: UNDER ASSESSMENT
+lastChecked: "2026-02-16"
+location: "CRS Lab – Brickyard 2nd Floor"
+maintainers:
+  - "Ali Kefel, Taha Saheen, Nick Huynh, Faisal Alyousefi"
+summary: "Mobile manipulation platform with two 7-DOF arms. Initial assessment pending."
+thumbnail: "/robot-media/kinova_movo/images/IMG_7100.JPG"
+resources:
+  - label: SDK User Guide
+    file: /robot-media/kinova_movo/docs/UG-008_KINOVA_Software_development_kit-User_guide_EN_R02 (1).pdf
+    type: doc
+  - label: Gen2 Ultra Lightweight Robot User Guide
+    file: /robot-media/kinova_movo/docs/EN-UG-009-Gen2-Ultra-lightweight-robot-user-guide-r4.1.pdf
+    type: doc
+  - label: Ultra Lightweight 6-DOF Specifications
+    file: /robot-media/kinova_movo/docs/EN-TS-009-Ultra-Lightweight-6-dof-specifications-r2.0.pdf
+    type: doc
+  - label: JACO User Guide
+    file: /robot-media/kinova_movo/docs/EN-UG-007-Jaco-user-guide-R05.pdf
+    type: doc
+---
+
+### Executive summary
+
+**Kinova MOVO** — Mobile Manipulation Platform
+
+| Field               | Value                                                |
+| ------------------- | ---------------------------------------------------- |
+| Platform Type       | Mobile Manipulation Robot                            |
+| Manufacturer        | Kinova Robotics                                      |
+| Model               | MOVO                                                 |
+| Lab Inventory ID    | _TBD_                                                |
+| Current Status      | UNDER ASSESSMENT                                     |
+| Last Validated      | 2026-03-14                                           |
+| Location            | CRS Lab – Brickyard 2nd Floor                        |
+| Primary Maintainers | Taha Saheen ,Ali Kefel, Nick Huynh, Faisal Alyousefi |
+
+The Kinova MOVO is a mobile manipulation platform equipped with two 7-DOF Kinova JACO arms, a mobile base, and sensors for autonomous navigation. It was selected for assessment and repair as part of the capstone project.
+
+## Hardware
+
+### Physical overview
+
+<Image
+  src="/robot-media/kinova_movo/images/MOVO_sections.jpg"
+  alt="Full MOVO Platform"
+  size="medium"
+/>
+<Image
+  src="/robot-media/kinova_movo/images/adustable_height.jpg"
+  alt="Home position illustrated on the right"
+  size="medium"
+/>
+
+<Image
+  src="/robot-media/kinova_movo/images/IMG_7120.JPG"
+  alt="Fron view of the MOVO with upper torso shell on"
+  size="medium"
+/>
+
+<Image
+  src="/robot-media/kinova_movo/images/control-panel.jpg"
+  alt="MOVO control panel detail"
+  size="medium"
+/>
+
+<Image
+  src="/robot-media/kinova_movo/images/IMG_7367.JPG"
+  alt="MOVO in HOME position with upper torso shell removed"
+  size="medium"
+/>
+
+## Software & Setup
+
+### System architecture
+
+MOVO runs on two onboard PCs (movo1 and movo2) connected via ROS. The system uses:
+
+- **ROS Indigo** for robot control
+- **MoveIt!** for motion planning
+- **Kortex API** for arm control (similar to Gen3)
+- **Gazebo** for simulation
+
+### Networking
+
+<Callout type="info">
+  MOVO provides Wi-Fi network **MoVoWifi** and assigns IPs via DHCP. Default
+  IPs: - movo2 PC: `10.66.171.1` - movo1 PC: `10.66.171.2` - Vector:
+  `10.66.171.5` - Front laser: `10.66.171.8` - Rear laser: `10.66.171.9` - Right
+  arm base: `10.66.171.15` - Left arm base: `10.66.171.16`
+</Callout>
+
+**Setup `/etc/hosts`:**
+
+```
+10.66.171.2 movo1
+10.66.171.1 movo2
+```
+
+### Boot & power
+
+1. Ensure E-stop is accessible and released
+2. Power on main breaker
+3. Wait for boot sequence (LEDs cycle)
+4. Verify connection via SSH or ping
+
+### Software environment
+
+```bash
+# ROS workspace
+cd ~/movo_ws
+source devel/setup.bash
+
+# Check ROS topics
+rostopic list
+```
+
+## Validation & Diagnostics
+
+### Boot diagnostics
+
+```bash
+# SSH into movo2
+ssh movo@movo2
+
+# Stop/start MOVO services
+movostop
+# Wait 10 seconds
+movostart
+
+# Check status
+movochk
+```
+
+### Communication check
+
+- Ping movo1: `ping 10.66.171.2`
+- Ping movo2: `ping 10.66.171.1`
+- List ROS topics: `rostopic list`
+
+### Health report
+
+| Component | Status                        |
+| --------- | ----------------------------- |
+| Power     | _Powers on and holds charge_  |
+| movo1 PC  | _Boots Up_                    |
+| movo2 PC  | _Boots Up_                    |
+| Left Arm  | Flashed with updated firmware |
+| Right Arm | Flashed with updated firmware |
+| Sensors   | Kinect 2 not discoverable     |
+
+## Troubleshooting
+
+| Issue                        | Possible Cause           | Solution                                |
+| ---------------------------- | ------------------------ | --------------------------------------- |
+| Can't connect to MOVO        | Not on same network      | Connect via Ethernet or MoVoWifi        |
+| No response from movo1/movo2 | Wrong IP / network issue | Check /etc/hosts configuration          |
+| Arms not responding          | ROS services not started | Run `movostart` and `roscore` on movo 2 |
+
+## Attempted Fixes
+
+<RepairEntry title="Initial power-on test" date="Week1" outcome="success">
+  Powered on the MOVO platform for the first time in the lab. The main breaker
+  was engaged and the system completed its boot sequence. LEDs cycled normally
+  and both onboard PCs (movo1, movo2) came online.
+</RepairEntry>
+
+<RepairEntry title="SSH access confirmed" date="Week 1" outcome="success">
+  Successfully SSHed into both movo1 and movo2 using default credentials.
+  Default password: `Welcome00`. Confirmed both machines are reachable over the
+  Wifi network and respond to ping at their expected IPs (`10.66.171.1` and
+  `10.66.171.2`).
+</RepairEntry>
+
+<RepairEntry title="Hardware inspection & disassembly" date="Week 1" outcome="success">
+  Checked the fuse box — no blown or rusted fuses. Flipped the switches on what
+  appear to be the arm drive controllers. Tested mouse, keyboard, and HDMI input
+  on the human interface panel. Removed the lower casing to access the robot's
+  internals.
+
+  <Image
+  src="/robot-media/kinova_movo/images/fusebox.JPG"
+  size="small"
+  />
+</RepairEntry>
+
+<RepairEntry title="HDMI display on human interface" date="Week 2" outcome="failed">
+  Tested the built-in HDMI port on the human interface — no signal detected.
+  Tried a jerry-rigged female-to-female HDMI adapter: worked on an external TV
+  but produced a green screen when connected to the onboard computer. Removed
+  the upper torso to investigate further.
+
+  <Image
+  src="/robot-media/kinova_movo/images/green-screen.png"
+  size="medium"
+  />
+</RepairEntry>
+
+<RepairEntry
+  title="IP reconfiguration between onboard PCs"
+  date="Week 2"
+  outcome="success"
+>
+  movo2's IP was previously changed. Updated movo1's `/etc/hosts` to point to
+  the new address so the two computers could find each other. Both machines were
+  then pingable from each other.
+</RepairEntry>
+
+<RepairEntry
+  title="Reset movo2 IP to original address"
+  date="Week 3"
+  outcome="success"
+>
+  Permanently reset movo2's IP back to `10.66.171.1` (original) via network
+  config files, and restored movo1's `/etc/hosts` accordingly. Both computers
+  now ping each other at their intended addresses.
+</RepairEntry>
+
+<RepairEntry title="Arm ethernet debugging" date="Week 3" outcome="failed">
+  Verified ethernet cables to both arms were seated and functional. Arms are
+  receiving power (they lock up on boot) but neither arm is visible on the
+  network. `movochk` (run from movo1) could ping all platform components except
+  the left arm. Unplugged cables to confirm the other IPs were not the arms.
+
+  <Callout type="warning">
+    ROSCORE runs on movo2. `movochk` must be run from movo1.
+    Do NOT plug an ethernet cable back into itself — this caused the robot to shut off.
+  </Callout>
+</RepairEntry>
+
+<RepairEntry title="Short-circuit arm controllers into recovery mode" date="Week 4" outcome="failed">
+  Attempted to force the arm controllers into recovery mode by briefly
+  short-circuiting them. Did not make the arms enter recovery mode. Ran launch files
+  and hit an rviz package missing error on movo1; rviz ran on movo2 but lacked
+  the packages that the movo1 launch file depends on.
+
+  <Image
+  src="/robot-media/kinova_movo/images/short-circuit-image.png"
+  size="medium"
+  />
+</RepairEntry>
+
+<RepairEntry title="JACO arm firmware update via development center" date="Week 4" outcome="partial">
+  Updated the left arm firmware using Kinova's development center over USB Type-B.
+  After the update, the left arm's ethernet port began blinking orange — first
+  sign of any network activity from the arm. Changed the right arm's IP to
+  `10.66.171.16` (the address movo1 expects). Used the virtual joystick over USB
+  to move the left arm, after which the left arm controller started providing a
+  signal via ethernet.
+
+Running the development center update on both arms resolved the ethernet
+connectivity issue. `movochk` now pings all components except the Kinect2.
+Launch files still fail to run successfully.
+
+  <Callout type="tip">
+    Shut down by tapping the power button once — do not hold. The onboard
+    computers power off alongside the robot.
+  </Callout>
+</RepairEntry>
+
+## Safety & Maintenance
+
+<Callout type="danger">
+  MOVO is a heavy mobile platform. Keep clear of the path during navigation.
+  Arms have pinch points. E-stop must be within reach at all times. Never work
+  on the robot while powered on unless necessary.
+</Callout>
+
+### Best practices
+
+- Keep workspace clear for navigation
+- Backup `/home/movo/movo_ws` before code updates
+- Log all sessions in change log
+
+### Maintenance schedule
+
+| Task                | Frequency | Last Done |
+| ------------------- | --------- | --------- |
+| Software update     | As needed | _TBD_     |
+| Kinect calibration  | As needed | _TBD_     |
+| Hardware inspection | Monthly   | _TBD_     |
+
+## Reference
+
+### Lab access
+
+- **Location:** Brickyard, 2nd floor
+- **Door:** Does NOT close properly — pull it shut behind you
+- **Keycard access:** We do NOT have keycard access
+- **To get in:** Contact **Taha** (usually 5th floor, 11am–7pm)
+- **3D printers & soldering:** Talk to **Nick** for training before using
+- **Multimeter:** _Need to purchase_
+
+### Resources & documentation
+
+| Resource              | Link                                               |
+| --------------------- | -------------------------------------------------- |
+| Kinova MOVO GitHub    | https://github.com/Kinovarobotics/kinova-movo      |
+| MOVO Wiki (Archived)  | https://github.com/Kinovarobotics/kinova-movo/wiki |
+| ROS Wiki              | http://wiki.ros.org/movo_demos                     |
+| MoveIt! Documentation | https://moveit.ros.org/                            |
+
+### Demo scripts
+
+| Demo | Command |
+| ---- | ------- |
+
+### Change lo
+
+| Date       | Change                                                                        | Author    |
+| ---------- | ----------------------------------------------------------------------------- | --------- |
+| 2026-03-06 | Documented Week 4 progress: arm firmware update via dev center                | Ali Kefel |
+| 2026-03-06 | Documented arm ethernet debugging findings and short-circuit recovery attempt | Ali Kefel |
+| 2026-03-06 | Documented initial hardware inspection and disassembly findings               | Ali Kefel |
+| 2026-03-06 | Added Attempted Fixes section with repair log cards                           | Ali Kefel |
+| 2026-03-06 | Added networking details including IP issue and hosts file configuration      | Ali Kefel |
+| 2026-02-17 | Updated with wiki How-Tos, added photos                                       | Ali Kefel |
+| 2026-02-16 | Wiki page created, initial template                                           | Ali Kefel |

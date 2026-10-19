@@ -1,0 +1,293 @@
+---
+name: Clearpath Husky A200
+platform: Unmanned Ground Vehicle
+status: OPERATIONAL
+summary: "Rugged, skid-steer outdoor mobile base for field robotics research."
+lastChecked: "2026-09-15"
+location: "CRS Lab – Brickyard 2nd Floor"
+maintainers:
+  - "Ali Kefel, Taha Saheen, Nick Huynh, Faisal Alyousefi"
+thumbnail: "/robot-media/husky/images/husky.JPG"
+resources:
+  - label: Husky A200 User Manual
+    file: https://docs.clearpathrobotics.com/docs_robots/outdoor_robots/husky/a200/user_manual_husky/
+    type: doc
+  - label: Husky Product Page
+    file: https://clearpathrobotics.com/husky-unmanned-ground-vehicle-robot/
+    type: doc
+  - label: Clearpath ROS 2 Documentation
+    file: https://docs.clearpathrobotics.com/docs/ros/
+    type: doc
+  - label: Robot YAML (robot.yaml) Reference
+    file: https://docs.clearpathrobotics.com/docs/ros/config/yaml/overview/
+    type: doc
+  - label: husky ROS Packages (GitHub)
+    file: https://github.com/husky/husky
+    type: doc
+---
+
+### Executive summary
+
+**Clearpath Husky A200** — Outdoor Mobile Base
+
+| Field               | Value                                                   |
+| ------------------- | ------------------------------------------------------- |
+| Platform Type       | Skid-steer unmanned ground vehicle                      |
+| Manufacturer        | Clearpath Robotics                                      |
+| Model               | Husky A200                                              |
+| Serial / Hostname   | `cpr-a200-0392` (ROS namespace `a200_0392`)             |
+| Lab Inventory ID    | _TBD_                                                   |
+| Current Status      | OPERATIONAL                                             |
+| Last Validated      | 2026-09-22                                              |
+| Location            | CRS Lab – Brickyard 2nd Floor                           |
+| Primary Maintainers | Ali Kefel                                               |
+
+The Husky was revived after sitting unused for years. The original onboard SSD (ROS Kinetic / Ubuntu 16.04) failed and was replaced; the robot now runs **Ubuntu 22.04 + ROS 2 Humble** with the Clearpath platform stack. A sensor arch carries a **Kinect v2** (mounted upside down) and a **Velodyne VLP-16**.
+
+## Hardware
+
+### Physical overview
+
+<Image
+  src="/robot-media/husky/images/husky_front.JPG"
+  alt="Husky A200 with sensor arch"
+  size="medium"
+/>
+
+<Image
+  src="/robot-media/husky/images/onboard_pc.JPG"
+  alt="Onboard PC with cover removed"
+  size="medium"
+/>
+
+| Component    | Details                                                          |
+| ------------ | ---------------------------------------------------------------- |
+| Onboard PC   | Jetway NF9J-Q87 Mini-ITX (Haswell / LGA1150), GTX 1050 Ti        |
+| Storage      | PNY 250 GB SATA SSD (replaced failed Intel SSD)                  |
+| Battery      | 24 V sealed lead-acid (confirm on pack label)                    |
+| Lidar        | Velodyne VLP-16, default IP `192.168.1.201`                      |
+| Depth camera | Microsoft Kinect v2 (USB 3.0), mounted **upside down**           |
+| Controller   | PS5 DualSense (wired USB-C works; see Troubleshooting for BT)    |
+| Bluetooth    | Broadcom BCM20702A0                                              |
+
+## Software & Setup
+
+### System architecture
+
+- **Ubuntu 22.04 Server** + **ROS 2 Humble**
+- Clearpath stack installed with `clearpath_computer_installer.sh`
+- `clearpath-platform` systemd service launches the base, twist_mux, joy teleop
+- Robot config: `/etc/clearpath/robot.yaml` (sensor arch **not yet added** — sensors are launched by `husky_test.py`)
+- NVIDIA driver 580 (`ubuntu-drivers autoinstall`)
+
+### Access
+
+<Callout type="info">
+  Default login: `administrator` / `clearpath`. Hostname `cpr-a200-0392`.
+  Connect your laptop to the **same network** as the Husky (not a phone
+  hotspot). Last known IP `192.168.2.10`; check with `hostname -I` on the robot
+  if it changes. Direct ethernet: set your laptop to `192.168.131.100/24`, no
+  router, then use `192.168.131.1`.
+</Callout>
+
+```bash
+ssh administrator@cpr-a200-0392.local      # or administrator@<ip>
+source /etc/clearpath/setup.bash           # needed in every new shell before ros2 commands
+```
+
+### Boot & power
+
+1. Release the E-stop.
+2. Turn on the Husky main power switch.
+3. The onboard PC boots automatically (BIOS set to power on when power returns). Wait ~60 s.
+4. COMM light turns **green** once `clearpath-platform` is talking to the MCU.
+5. Verify: `ping cpr-a200-0392.local`, then SSH in.
+
+<Callout type="warning">
+  **Always shut down the PC before cutting power:** `sudo poweroff`, wait for the
+  PC to go dark, then turn off the main switch. The main switch cuts power
+  without an OS shutdown — the previous SSD died with I/O errors.
+</Callout>
+
+### Teleop
+
+1. Plug the DualSense in with a USB-C cable (or press PS if it is paired over Bluetooth).
+2. Check: `ls -l /dev/input/ps4` should point to `js0`.
+3. Hold **L1** (deadman) and use the **left stick**. Hold **R1** for turbo.
+4. If nothing moves: `sudo systemctl restart clearpath-platform`, wait 20 s.
+
+Check joystick input:
+
+```bash
+ros2 topic echo /a200_0392/joy_teleop/joy
+```
+
+### Data collection — `husky_test.py`
+
+One script for everything: sensor capture, battery logging, per-component power profile and plots. It lives at `~/husky_test.py` on the robot.
+
+```bash
+./husky_test.py                                                   # interactive menu
+./husky_test.py run --sensors --battery -d 0 --analyze -l teleop  # record while you teleop, Ctrl+C to stop
+./husky_test.py run --battery drive -d 14400 --analyze -l rundown # battery rundown test (robot moves!)
+./husky_test.py run --power                                       # per-component power profile (robot still)
+./husky_test.py list
+```
+
+Sessions are saved to `~/husky_data/session_<date>_<label>/`:
+
+| Path                            | Contents                                           |
+| ------------------------------- | -------------------------------------------------- |
+| `summary.txt`                   | All stats: battery, per-component power, sensor Hz |
+| `sensors/video/dashboard.mp4`   | Kinect RGB, depth, lidar top-down, lidar 3D        |
+| `sensors/lidar/lidar_viewer.html` | Interactive 3D lidar player                      |
+| `bag/`                          | Raw mcap — open in Foxglove                        |
+| `battery/telemetry.csv`         | 2 Hz electrical log                                |
+| `plots/`                        | Battery and power charts                           |
+
+
+## Battery & Power Results
+
+### Session 2026-09-22 — teleop, sensors on (4.9 min)
+
+| Metric                         | Value                         |
+| ------------------------------ | ----------------------------- |
+| Mean total draw                | ~83 W (3.3 A at ~25 V)        |
+| Drive motors                   | mean 51.1 W, peak 186.6 W     |
+| MCU + user ports               | mean 27.1 W, peak 41.9 W      |
+| Unmetered remainder            | mean 5.1 W                    |
+| Voltage range                  | 24.71 – 25.35 V               |
+| Internal resistance (V–I fit)  | ~60 mΩ                        |
+| Distance                       | 50.6 m                        |
+| Estimated practical runtime    | ~2.5–3 h mixed use, ~1.5 h continuous driving (not yet verified by rundown) |
+
+<Callout type="warning">
+  The Husky's SOC % is estimated from **loaded** voltage and drops whenever the
+  motors pull current — do not use it for runtime estimates. Onboard PC power
+  (CPU/GPU) may not be in these numbers; see Open items.
+</Callout>
+
+### Charts
+
+<Image
+  src="/robot-media/husky/images/11_dashboard_summary.png"
+  alt="Battery dashboard: voltage, current, power, SOC"
+  size="large"
+/>
+
+<Image
+  src="/robot-media/husky/images/01_voltage_vs_time.png"
+  alt="Battery voltage vs time"
+  size="medium"
+/>
+
+## Validation & Diagnostics
+
+### Communication check
+
+```bash
+ping cpr-a200-0392.local
+systemctl status clearpath-platform --no-pager | head -5
+source /etc/clearpath/setup.bash && ros2 topic list | grep a200_0392
+```
+
+### Health report
+
+| Component        | Status                                                       |
+| ---------------- | ------------------------------------------------------------ |
+| Power / battery  | _Holds charge, ~25.2 V near rest_                            |
+| Onboard PC       | _Boots on new PNY SSD, auto power-on_                        |
+| MCU / COMM light | _Green with clearpath-platform running_                      |
+| Drive            | _Teleop working (DualSense wired)_                           |
+| VLP-16           | _Publishing ~10 Hz_                                          |
+| Kinect v2        | _Publishing ~3 Hz — CPU depth only, GPU not in use yet_      |
+| Bluetooth        | _Pairs, but DualSense drops right after connecting_          |
+
+### Open items
+
+- [ ] Rebuild libfreenect2 with OpenCL/CUDA → Kinect to ~30 Hz
+- [ ] Add sensor arch (VLP-16, Kinect v2) to `/etc/clearpath/robot.yaml`
+- [ ] Restore `br0` bridge at `192.168.131.1/24` (missing on fresh install)
+- [ ] Enable CPU power readings: `sudo chmod o+r /sys/class/powercap/intel-rapl:*/energy_uj`
+- [ ] Full battery rundown test to get true runtime
+- [ ] Install CUDA 12.x (CUDA 13 does not support the 1050 Ti / sm_61)
+- [ ] Fix DualSense Bluetooth (retry pairing now that ds4drv is disabled, or USB BT 5.0 dongle)
+
+## Troubleshooting
+
+| Issue                                   | Possible Cause                                   | Solution                                                                 |
+| --------------------------------------- | ------------------------------------------------ | ------------------------------------------------------------------------ |
+| Can't SSH / "Host is down"              | Laptop on a different network (e.g. phone hotspot) | Join the Husky's network; `ipconfig getifaddr en0` should match its subnet |
+| COMM light red                          | PC not booted or `clearpath-platform` not running | Wait 60 s; `sudo systemctl restart clearpath-platform`                  |
+| PC doesn't turn on with main switch     | BIOS not set to power on after AC loss           | BIOS → "Restore on AC Power Loss" = Power On                             |
+| BIOS settings / boot order reset        | Dead CMOS coin cell                              | Replace CR2032 on motherboard                                            |
+| Joystick does nothing                   | `/dev/input/ps4` missing                         | Check udev rule below, replug, restart platform                          |
+| `ros2 topic` shows nothing              | Clearpath env not sourced                        | `source /etc/clearpath/setup.bash`                                       |
+| Kinect ~3 Hz                            | CPU depth processing                             | GPU depth build (Open items)                                             |
+| Battery columns blank in CSV            | `clearpath-platform` not running                 | Start the service before `husky_test.py`                                 |
+
+<Callout type="info">
+  DualSense udev rule (`/etc/udev/rules.d/99-dualsense.rules`) — the joy node
+  hardcodes `/dev/input/ps4`:
+  `KERNEL=="js*", SUBSYSTEM=="input", ATTRS{name}=="*DualSense Wireless Controller", SYMLINK+="input/ps4", MODE="0666"`
+  Apply with `sudo udevadm control --reload-rules && sudo udevadm trigger`.
+</Callout>
+
+
+## Safety & Maintenance
+
+<Callout type="danger">
+  The Husky is heavy and fast. `drive`/`step` battery test modes move the
+  robot several metres on their own — clear the area or put the wheels up,
+  and keep the E-stop within reach. The joystick overrides scripted motion
+  only while L1 is held.
+</Callout>
+
+### Best practices
+
+- `sudo poweroff` before turning off the main switch
+- Charge after every session (lead-acid degrades if left discharged)
+- Run captures in `tmux`
+- Pull data off the robot regularly — Kinect + lidar is ~2–3 GB/min
+- Log all sessions in the change log
+
+### Maintenance schedule
+
+| Task                     | Frequency | Last Done  |
+| ------------------------ | --------- | ---------- |
+| Battery charge           | After use | _TBD_      |
+| Battery rundown test     | Quarterly | _TBD_      |
+| Software update          | As needed | 2026-09-16 |
+| Hardware inspection      | Monthly   | _TBD_      |
+
+## Reference
+
+### Lab access
+
+- **Location:** Brickyard, 2nd floor
+- **Door:** Does NOT close properly — pull it shut behind you
+- **To get in:** Contact **Taha** (usually 5th floor, 11am–7pm)
+
+### Resources & documentation
+
+| Resource                    | Link                                                                 |
+| --------------------------- | -------------------------------------------------------------------- |
+| Clearpath ROS 2 Docs        | https://docs.clearpathrobotics.com                                   |
+| Clearpath Support           | support@clearpathrobotics.com                                        |
+| kinect2_bridge / libfreenect2 | https://github.com/OpenKinect/libfreenect2                          |
+| Velodyne ROS 2 driver       | https://github.com/ros-drivers/velodyne                              |
+| Foxglove (view mcap bags)   | https://foxglove.dev                                                 |
+
+### Demo scripts
+
+| Demo                     | Command                                                          |
+| ------------------------ | ---------------------------------------------------------------- |
+| Record while teleoping   | `./husky_test.py run --sensors --battery -d 0 --analyze -l teleop` |
+| Power profile            | `./husky_test.py run --power`                                    |
+| Re-plot a session        | `./husky_test.py analyze`                                        |
+
+### Change log
+
+| Date       | Change                                                              | Author    |
+| ---------- | ------------------------------------------------------------------- | --------- |
+| 2026-09-28 | Wiki page created: setup, data collection, battery results, repair log | Ali Kefel |
