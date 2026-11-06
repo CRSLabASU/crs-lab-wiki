@@ -1,6 +1,10 @@
 # CRS Robot Wiki
 
+[![Open the wiki](https://img.shields.io/badge/Open%20the%20wiki-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://crs-lab-wiki.vercel.app)
+
 [![CI](https://github.com/CRSLabASU/crs-lab-wiki/actions/workflows/ci.yml/badge.svg)](https://github.com/CRSLabASU/crs-lab-wiki/actions/workflows/ci.yml)
+
+
 
 A Next.js wiki for the Cooperative Robotic Systems (CRS) Lab: documentation,
 diagnostics and repair notes for every robot in the lab.
