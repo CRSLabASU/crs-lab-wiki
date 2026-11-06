@@ -1,13 +1,13 @@
 # CRS Robot Wiki
 
-[![CI](https://github.com/AliKefel/crs-robot-wiki/actions/workflows/ci.yml/badge.svg)](https://github.com/AliKefel/crs-robot-wiki/actions/workflows/ci.yml)
+[![CI](https://github.com/CRSLabASU/crs-lab-wiki/actions/workflows/ci.yml/badge.svg)](https://github.com/CRSLabASU/crs-lab-wiki/actions/workflows/ci.yml)
 
 A Next.js wiki for the Cooperative Robotic Systems (CRS) Lab: documentation,
 diagnostics and repair notes for every robot in the lab.
 
 ## Getting Started
 
-Run all commands from inside the `crs-robot-wiki` folder:
+Run all commands from inside the `crs-lab-wiki` folder:
 
 ```bash
 npm install
@@ -74,31 +74,113 @@ Vercel's servers can't write files and don't include git history, so the wiki
 saves edits by committing to GitHub. Each commit triggers a Vercel redeploy, and
 the edited page goes live when that deploy finishes (usually a minute or two).
 
+### Accounts
+
+The site runs on lab accounts, so it doesn't depend on any one person.
+
+| Service | What it's for                               | How to sign in                                     |
+| ------- | ------------------------------------------- | -------------------------------------------------- |
+| Vercel  | Hosting                                     | **Continue with Google** as `crslab.bot@gmail.com` |
+| Upstash | Redis storage and QStash reminder timing    | **Continue with Google** as `crslab.bot@gmail.com` |
+| Google  | Sending reminder emails                     | `crslab.bot@gmail.com`                             |
+| GitHub  | The `CRSLabASU/crs-lab-wiki` repo and token | The lab's bot GitHub account                       |
+
+Ask a lab admin for the bot account's sign-in details. Never put them in this
+repo.
+
 ### 1. Create a GitHub token
 
-Create a [fine-grained personal access token](https://github.com/settings/personal-access-tokens/new):
+The bot GitHub account must be a member of the `CRSLabASU` org with write access
+to the repo. Signed in as the bot, create a
+[fine-grained personal access token](https://github.com/settings/personal-access-tokens/new):
 
-- **Repository access:** Only select repositories → `crs-robot-wiki`
+- **Resource owner:** `CRSLabASU`, not the bot account
+- **Repository access:** Only select repositories → `crs-lab-wiki`
 - **Permissions:** Contents → **Read and write**
+- **Expiration:** The longest the org allows
 
-### 2. Add environment variables in Vercel
+If the org requires approval, an org owner approves it under org **Settings →
+Third-party Access → Personal access tokens → Pending requests**. The token
+doesn't work until then.
+
+When the token expires, saving and History stop working, but pages still load.
+Set a reminder to replace it and update `GITHUB_TOKEN` in Vercel.
+
+### 2. Create the Vercel project
+
+1. Sign in to [Vercel](https://vercel.com) with Google as `crslab.bot@gmail.com`
+2. Choose **Add New → Project** and import `CRSLabASU/crs-lab-wiki`
+3. Keep the default Next.js settings
+
+### 3. Create the Upstash services
+
+Sign in to the [Upstash console](https://console.upstash.com) with Google as
+`crslab.bot@gmail.com`.
+
+**Redis** stores charging sessions and editors added on the site:
+
+1. Create a Redis database
+2. Under **REST API**, copy the URL and token into `UPSTASH_REDIS_REST_URL` and
+   `UPSTASH_REDIS_REST_TOKEN`
+
+Connecting Redis through the Vercel Marketplace instead sets `KV_REST_API_URL`
+and `KV_REST_API_TOKEN` for you, which also work.
+
+**QStash** calls the site when a charge time is up:
+
+1. Open **QStash**
+2. Copy the token into `QSTASH_TOKEN`
+3. Copy the signing keys into `QSTASH_CURRENT_SIGNING_KEY` and
+   `QSTASH_NEXT_SIGNING_KEY`
+4. If the page shows a URL other than `https://qstash.upstash.io`, copy it into
+   `QSTASH_URL`
+
+### 4. Create the Gmail app password
+
+Signed in to Google as `crslab.bot@gmail.com`, turn on 2-Step Verification, then
+create an app password under **Google Account → Security → 2-Step Verification →
+App passwords**.
+
+### 5. Add environment variables in Vercel
 
 In the Vercel project, go to **Settings → Environment Variables** and add these
 for the Production environment:
 
-| Variable              | Value                                                        |
-| --------------------- | ------------------------------------------------------------ |
-| `GITHUB_TOKEN`        | The token from step 1                                        |
-| `GITHUB_OWNER`        | `AliKefel`                                                   |
-| `GITHUB_REPO`         | `crs-robot-wiki`                                             |
-| `GITHUB_BRANCH`       | The branch Vercel deploys to production (usually `main`)     |
-| `WIKI_SESSION_SECRET` | Output of `openssl rand -hex 32`                             |
-| `WIKI_EDITORS`        | Output of `npm run -s editors:env` (see [Editors](#editors)) |
+| Variable                     | Value                                                                                                                       |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `GITHUB_TOKEN`               | The token from step 1                                                                                                       |
+| `GITHUB_OWNER`               | `CRSLabASU`                                                                                                                 |
+| `GITHUB_REPO`                | `crs-lab-wiki`                                                                                                              |
+| `GITHUB_BRANCH`              | The branch Vercel deploys to production (usually `main`)                                                                    |
+| `WIKI_SESSION_SECRET`        | Output of `openssl rand -hex 32`                                                                                            |
+| `WIKI_EDITORS`               | Output of `npm run -s editors:env` (see [Editors](#editors))                                                                |
+| `UPSTASH_REDIS_REST_URL`     | From step 3                                                                                                                 |
+| `UPSTASH_REDIS_REST_TOKEN`   | From step 3                                                                                                                 |
+| `QSTASH_TOKEN`               | From step 3                                                                                                                 |
+| `QSTASH_CURRENT_SIGNING_KEY` | From step 3                                                                                                                 |
+| `QSTASH_NEXT_SIGNING_KEY`    | From step 3                                                                                                                 |
+| `QSTASH_URL`                 | From step 3, only if it isn't the default                                                                                   |
+| `GMAIL_USER`                 | `crslab.bot@gmail.com`                                                                                                      |
+| `GMAIL_APP_PASSWORD`         | From step 4                                                                                                                 |
+| `CHARGING_SITE_URL`          | Optional. Site address for QStash callbacks and email links, such as a custom domain. Defaults to the Vercel production URL |
 
 Then redeploy. Environment variable changes only apply to new deployments.
 
 `GITHUB_BRANCH` must be the branch Vercel deploys, or saves won't show up on
 the site.
+
+Without Redis, the live site doesn't show an error: it falls back to memory, and
+charging sessions disappear or go out of sync. Set the Redis variables even if
+the site looks fine without them.
+
+### 6. Check the deployment
+
+On the production site:
+
+1. Sign in, then save a small edit to a robot page
+2. On **Manage Editors**, add a test editor, sign in as them, then remove them
+3. On **Charging**, start a session and confirm the reminder email arrives.
+   Reminders only work on production (see [Charging page](#charging-page))
 
 ### What editors see
 
@@ -111,11 +193,34 @@ the site.
 
 ## Editors
 
-Editors are an allow list of emails with hashed passwords. You manage the list
-on your own machine with `npm run add-editor`, which writes `editors.json`
-(gitignored), then copy it into Vercel.
+Editors are an allow list of emails with hashed passwords. There are two kinds:
 
-### Add an editor
+- **Admins** are listed in the `WIKI_EDITORS` variable in Vercel. They can sign
+  in, edit, and use the **Manage Editors** page. You manage them on your own
+  machine with `npm run add-editor`, which writes `editors.json` (gitignored),
+  then copy it into Vercel.
+- **Editors** are added on the **Manage Editors** page and stored in Upstash
+  Redis (the database from [Charging](#environment-variables)). They can sign in
+  and edit, but can't manage other editors.
+
+### Manage Editors page
+
+Admins see **Manage Editors** in the sidebar. Changes apply right away, with no
+redeploy.
+
+- **Add an editor:** enter their email and a temporary password (at least 8
+  characters), then send them the password. There's no self sign-up.
+- **Reset a password:** add the same email again with a new temporary password.
+- **Remove an editor:** select the trash icon. They're signed out immediately.
+
+Editors can change their own password with the key icon at the bottom of the
+sidebar. Admins can't remove each other here, and a person can't be made an
+admin from the page: use the steps below.
+
+The page needs Redis. Without it, for example in local development, only the
+admin list exists and the form is hidden.
+
+### Add an admin
 
 ```bash
 npm run add-editor -- someone@asu.edu
@@ -143,7 +248,7 @@ deployment → **⋯** → **Redeploy**).
 Keep your local `editors.json` safe. It's the source you edit and copy from, and
 it isn't stored anywhere else except inside the Vercel variable.
 
-### Change a password
+### Change an admin's password
 
 Run the same command with the editor's existing email, enter the new password,
 then update `WIKI_EDITORS` in Vercel and redeploy:
@@ -152,14 +257,14 @@ then update `WIKI_EDITORS` in Vercel and redeploy:
 npm run add-editor -- someone@asu.edu
 ```
 
-The old password stops working once the new deployment is live. Editors can't
+The old password stops working once the new deployment is live. Admins can't
 change their own password from the site, so this is also how to reset a
 forgotten one.
 
 > Changing a password does **not** sign out sessions that are already signed in
 > (sessions last 7 days). To sign everyone out, see below.
 
-### Remove an editor
+### Remove an admin
 
 Delete their entry from `editors.json`, then update `WIKI_EDITORS` in Vercel and
 redeploy:
@@ -174,7 +279,10 @@ redeploy:
 Access is revoked when the new deployment goes live, including for sessions
 that are already signed in.
 
-### List editors
+### List admins
+
+Everyone, including editors added on the site, is listed on the Manage Editors
+page. To list just the admins:
 
 ```bash
 node -e 'console.log(require("./editors.json").map((e) => e.email).join("\n"))'
@@ -191,7 +299,7 @@ their current passwords.
 - The whole wiki needs sign-in. Opening any page while signed out sends you to
   `/login`, then back to that page. `proxy.ts` does this check on every request.
 - Everyone on the allow list can read, edit and restore pages. There's no
-  read-only role.
+  read-only role. Only admins can open Manage Editors.
 - Still public: `/login`, the QStash callback `/api/charging/remind` (it checks
   QStash's signature instead), and the files in `public/` such as
   `/robot-media/...`. Those files stay public because Vercel's image optimizer
@@ -221,12 +329,15 @@ test branch rather than `main`.
 | Variable              | Required       | Description                                                             |
 | --------------------- | -------------- | ----------------------------------------------------------------------- |
 | `WIKI_SESSION_SECRET` | Yes            | Random string (32+ characters) used to sign session cookies             |
-| `WIKI_EDITORS`        | On Vercel      | The editors JSON (overrides the file)                                   |
-| `WIKI_EDITORS_FILE`   | No             | Path to the editors file. Defaults to `editors.json`                    |
+| `WIKI_EDITORS`        | On Vercel      | The admins JSON (overrides the file)                                    |
+| `WIKI_EDITORS_FILE`   | No             | Path to the admins file. Defaults to `editors.json`                     |
 | `GITHUB_TOKEN`        | On Vercel      | Fine-grained token with Contents read/write. Enables the GitHub backend |
 | `GITHUB_OWNER`        | With the token | Repository owner                                                        |
 | `GITHUB_REPO`         | With the token | Repository name                                                         |
 | `GITHUB_BRANCH`       | No             | Branch to commit to. Defaults to `main`                                 |
+
+The charging and Redis variables are listed in
+[Charging page](#environment-variables).
 
 ## Charging page
 
@@ -244,7 +355,16 @@ in `lib/charging/robots.ts`:
 Reminders repeat every hour (up to 3 emails) until someone updates the robot.
 Each email has a link that updates the robot without finding it on the page.
 
-Times are set per robot in `lib/charging/robots.ts`.
+Times are set per robot in `lib/charging/robots.ts`:
+
+| Robot                         | Kind    | First reminder after |
+| ----------------------------- | ------- | -------------------- |
+| NAO (Jimmy, Yoda, Bran, Echo) | Battery | 2 hours              |
+| Clearpath Husky A200          | Battery | 10 hours             |
+| Kinova MOVO                   | Docked  | 2 hours              |
+| UR5 with Robotiq Gripper      | Docked  | 2 hours              |
+
+### How it works
 
 | Piece   | Service                                   | Code                       |
 | ------- | ----------------------------------------- | -------------------------- |
@@ -252,10 +372,32 @@ Times are set per robot in `lib/charging/robots.ts`.
 | Timing  | Upstash QStash                            | `lib/charging/schedule.ts` |
 | Email   | Gmail (`crslab.bot`) with an app password | `lib/charging/email.ts`    |
 
-QStash calls `/api/charging/remind` when a charge time is up. The route checks
-the request's QStash signature before sending anything.
+1. Someone starts a timer. The session is saved in Redis, and the wiki asks
+   QStash to call back after the robot's charge time.
+2. QStash calls `/api/charging/remind`. The route checks the request's QStash
+   signature before sending anything, and QStash retries if the call fails.
+3. If the timer is still running, the wiki emails the person who started it from
+   `crslab.bot@gmail.com` and schedules the next reminder.
+4. The email's link is signed with `WIKI_SESSION_SECRET`, so changing that secret
+   breaks links in emails already sent.
+
+If the reminder can't be scheduled, the timer is cancelled and the page shows an
+error, so a timer never runs with no reminder coming.
+
+Upstash Redis keys:
+
+| Key                     | Holds                                    |
+| ----------------------- | ---------------------------------------- |
+| `charging:session:<id>` | One charging session                     |
+| `charging:history`      | Session ids, sorted by start time        |
+| `charging:active`       | Each robot's open session                |
+| `charging:reminders`    | Reminders sent for each session          |
+| `wiki:editors`          | Editors added on the Manage Editors page |
 
 ### Environment variables
+
+See [Create the Upstash services](#3-create-the-upstash-services) and
+[Create the Gmail app password](#4-create-the-gmail-app-password) for setup.
 
 | Variable                     | Where to find it                                                                                   |
 | ---------------------------- | -------------------------------------------------------------------------------------------------- |
@@ -355,14 +497,14 @@ In MDX, `<` and `{` outside code blocks are treated as code. Put things like
 
 ### Scripts
 
-| Command                         | Description                        |
-| ------------------------------- | ---------------------------------- |
-| `npm run dev`                   | Start development server           |
-| `npm run build`                 | Build for production               |
-| `npm start`                     | Run the production build           |
-| `npm run lint`                  | Run ESLint                         |
-| `npm run lint -- --fix`         | Auto-fix lint issues               |
-| `npm run add-editor -- <email>` | Add an editor or change a password |
+| Command                         | Description                           |
+| ------------------------------- | ------------------------------------- |
+| `npm run dev`                   | Start development server              |
+| `npm run build`                 | Build for production                  |
+| `npm start`                     | Run the production build              |
+| `npm run lint`                  | Run ESLint                            |
+| `npm run lint -- --fix`         | Auto-fix lint issues                  |
+| `npm run add-editor -- <email>` | Add an admin or change their password |
 
 ### Code Quality Checks
 
@@ -394,28 +536,42 @@ The project runs these checks on push to `main` and on pull requests:
 | `content/robots/`                     | Robot pages (MDX)                               |
 | `lib/content.ts`                      | Reading, saving and history of pages (git)      |
 | `lib/auth.ts`                         | Editor allow list, password checks and sessions |
+| `lib/editors-store.ts`                | Editors added on the site, stored in Redis      |
+| `lib/redis.ts`                        | Upstash Redis client                            |
+| `lib/charging/`                       | Charging sessions, reminders and email          |
 | `lib/robots/loader.ts`                | Loads robot frontmatter and compiles MDX        |
 | `proxy.ts`                            | Sends signed-out visitors to the sign-in page   |
 | `app/(wiki)/`                         | Pages behind sign-in, with the sidebar layout   |
 | `app/(wiki)/robots/[slug]/actions.ts` | Save and restore server actions                 |
+| `app/(wiki)/editors/`                 | Manage Editors page (admins only)               |
+| `app/(wiki)/password/`                | Change password page                            |
 | `app/login/`                          | Sign-in page                                    |
-| `scripts/add-editor.mjs`              | CLI for adding editors and changing passwords   |
+| `scripts/add-editor.mjs`              | CLI for adding admins and changing passwords    |
 
 ### Troubleshooting
 
 - **`Can't resolve 'tailwindcss'`** — the dev server was started outside the
-  project folder. `cd crs-robot-wiki` and run `npm run dev` again.
+  project folder. `cd crs-lab-wiki` and run `npm run dev` again.
 - **New styles don't show up in dev** — restart the dev server.
 - **Sign-in shows an error mentioning `WIKI_SESSION_SECRET`** — set the secret
   (32+ characters) in Vercel or `.env.local`, then redeploy or restart.
-- **"Incorrect email or password" on the live site** — check the email is in
-  `WIKI_EDITORS` in Vercel, and that you redeployed after changing it.
+- **"Incorrect email or password" on the live site** — check the email is on the
+  Manage Editors page. For an admin, check `WIKI_EDITORS` in Vercel, and that you
+  redeployed after changing it.
+- **Manage Editors says Redis isn't set up** — add the Redis variables in Vercel
+  and redeploy.
 - **"Editing and history on Vercel need the GitHub backend"** — the `GITHUB_*`
   variables are missing in Vercel. Add them and redeploy.
 - **`GitHub API error 401` or `404`** — the token is expired, or doesn't have
   Contents read/write access to this repository.
 - **Saved, but the live page didn't change** — check the deployment in Vercel,
   and that `GITHUB_BRANCH` is the branch Vercel deploys to production.
+- **"Couldn't schedule the reminder email"** — check `QSTASH_TOKEN`, and
+  `QSTASH_URL` if your QStash page shows a different address.
+- **No reminder email arrives** — check the logs on the QStash page. A `401` from
+  the site means the signing keys in Vercel are wrong. If QStash shows a `500`,
+  check `GMAIL_USER` and `GMAIL_APP_PASSWORD`.
+- **Charging sessions disappear** — the Redis variables are missing in Vercel.
 
 ## Tech Stack
 

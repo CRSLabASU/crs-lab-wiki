@@ -21,11 +21,20 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 
-import { BatteryCharging, Bot, House, LogOut, Moon, Sun } from "lucide-react";
+import {
+  BatteryCharging,
+  Bot,
+  House,
+  KeyRound,
+  LogOut,
+  Moon,
+  Sun,
+  Users,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useTheme } from "next-themes";
 import { cn, statusColors } from "@/lib/utils";
-import { logout } from "@/app/login/actions";
+import { currentAccount, logout } from "@/app/login/actions";
 
 function TopLink({
   href,
@@ -118,6 +127,11 @@ export function AppSidebar({ robots }: { robots: RobotMeta[] }) {
 
   const { resolvedTheme, setTheme } = useTheme();
 
+  const [admin, setAdmin] = useState(false);
+  useEffect(() => {
+    currentAccount().then((account) => setAdmin(!!account?.admin));
+  }, []);
+
   const openRobot = sorted.find((r) => r.slug === activeRobotSlug);
   const activeSection = useActiveSection(
     (openRobot?.sections ?? []).map((sec) => sec.slug),
@@ -159,6 +173,13 @@ export function AppSidebar({ robots }: { robots: RobotMeta[] }) {
                 <BatteryCharging />
                 <span>Charging</span>
               </TopLink>
+
+              {admin && (
+                <TopLink href="/editors" isActive={pathname === "/editors"}>
+                  <Users />
+                  <span>Manage Editors</span>
+                </TopLink>
+              )}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
@@ -225,6 +246,18 @@ export function AppSidebar({ robots }: { robots: RobotMeta[] }) {
             © {new Date().getFullYear()} CRS Lab
           </span>
           <div className="flex items-center gap-1">
+            <Button
+              asChild
+              variant="ghost"
+              size="icon"
+              className="size-7"
+              aria-label="Change password"
+              title="Change password"
+            >
+              <Link href="/password" onClick={closeMobile}>
+                <KeyRound className="size-4" />
+              </Link>
+            </Button>
             <form action={logout}>
               <Button
                 type="submit"

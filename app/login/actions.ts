@@ -1,7 +1,13 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { checkCredentials, endSession, startSession } from "@/lib/auth";
+import {
+  checkCredentials,
+  endSession,
+  getEditor,
+  isAdmin,
+  startSession,
+} from "@/lib/auth";
 
 function safeReturnPath(value: FormDataEntryValue | null) {
   const next = typeof value === "string" ? value : "";
@@ -25,4 +31,10 @@ export async function login(formData: FormData) {
 export async function logout() {
   await endSession();
   redirect("/login");
+}
+
+/** Who's signed in, for the sidebar. The layout stays static, so it asks from the browser. */
+export async function currentAccount() {
+  const email = await getEditor();
+  return email ? { email, admin: await isAdmin(email) } : null;
 }

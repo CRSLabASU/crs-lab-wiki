@@ -1,13 +1,19 @@
-import { createHmac, scrypt, timingSafeEqual } from "node:crypto";
+import { createHmac, randomBytes, scrypt, timingSafeEqual } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { getAddedEditor, listAddedEditors } from "@/lib/editors-store";
 
-// Editors are an allow list of emails with scrypt-hashed passwords, read from
-// `editors.json` (or WIKI_EDITORS_FILE). Add one with `npm run add-editor`.
-// On hosts without a persistent disk, put the same JSON in WIKI_EDITORS.
+// Editors are an allow list of emails with scrypt-hashed passwords, from two
+// places:
+// - Admins: read from `editors.json` (or WIKI_EDITORS_FILE). Add one with
+//   `npm run add-editor`. On hosts without a persistent disk, put the same JSON
+//   in WIKI_EDITORS. They're checked first and need no network call, so a Redis
+//   outage can't lock them out.
+// - Editors added by an admin on the Manage Editors page, kept in Redis (see
+//   lib/editors-store.ts).
 
 const scryptAsync = promisify(scrypt) as (
   password: string,
@@ -37,11 +43,43 @@ async function loadEditors(): Promise<Editor[]> {
   }
 }
 
-async function findEditor(email: string) {
+async function findAdmin(email: string) {
   const normalized = email.trim().toLowerCase();
   return (await loadEditors()).find(
     (e) => e.email.toLowerCase() === normalized,
   );
+}
+
+async function findEditor(email: string): Promise<Editor | null> {
+  return (
+    (await findAdmin(email)) ??
+    (await getAddedEditor(email.trim().toLowerCase()))
+  );
+}
+
+export async function isAdmin(email: string) {
+  return !!(await findAdmin(email));
+}
+
+/** Everyone who can sign in, admins first. */
+export async function listEditors(): Promise<
+  { email: string; admin: boolean; addedBy?: string }[]
+> {
+  const admins = await loadEditors();
+  const adminEmails = new Set(admins.map((e) => e.email.toLowerCase()));
+  const added = (await listAddedEditors())
+    .filter((e) => !adminEmails.has(e.email))
+    .sort((a, b) => a.email.localeCompare(b.email));
+  return [
+    ...admins
+      .map((e) => ({ email: e.email, admin: true }))
+      .sort((a, b) => a.email.localeCompare(b.email)),
+    ...added.map((e) => ({
+      email: e.email,
+      admin: false,
+      addedBy: e.addedBy,
+    })),
+  ];
 }
 
 /** Hash format: `scrypt:<salt base64>:<key base64>` (matches scripts/add-editor.mjs). */
@@ -55,6 +93,12 @@ async function verifyPassword(password: string, stored: string) {
     expected.length,
   );
   return timingSafeEqual(actual, expected);
+}
+
+export async function hashPassword(password: string) {
+  const salt = randomBytes(16);
+  const key = await scryptAsync(password, salt, 64);
+  return `scrypt:${salt.toString("base64")}:${key.toString("base64")}`;
 }
 
 function secret() {
@@ -128,5 +172,12 @@ export async function editorFromSession(
 export async function requireEditor(returnTo: string) {
   const email = await getEditor();
   if (!email) redirect(`/login?next=${encodeURIComponent(returnTo)}`);
+  return email;
+}
+
+/** Use in pages and server actions only admins may reach. */
+export async function requireAdmin(returnTo: string) {
+  const email = await requireEditor(returnTo);
+  if (!(await isAdmin(email))) redirect("/");
   return email;
 }
