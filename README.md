@@ -1,8 +1,7 @@
-# CRS Robot Wiki
-
-[![Open the wiki](https://img.shields.io/badge/Open%20the%20wiki-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://crs-lab-wiki.vercel.app)
-
+# CRS Robot Wiki 
 [![CI](https://github.com/CRSLabASU/crs-lab-wiki/actions/workflows/ci.yml/badge.svg)](https://github.com/CRSLabASU/crs-lab-wiki/actions/workflows/ci.yml)
+
+[![WIKI](https://img.shields.io/badge/WIKI-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://crs-lab-wiki.vercel.app)
 
 
 
