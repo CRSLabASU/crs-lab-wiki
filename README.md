@@ -215,12 +215,15 @@ redeploy.
 - **Reset a password:** add the same email again with a new temporary password.
 - **Remove an editor:** select the trash icon. They're signed out immediately.
 
-Editors can change their own password with the key icon at the bottom of the
-sidebar. Admins can't remove each other here, and a person can't be made an
-admin from the page: use the steps below.
+Everyone, admins included, can change their own password with the key icon at
+the bottom of the sidebar. Admins can also reset another admin's password by
+adding that admin's email with a new temporary password. Admins can't remove
+each other here, and a person can't be made an admin from the page: use the
+steps below.
 
 The page needs Redis. Without it, for example in local development, only the
-admin list exists and the form is hidden.
+admin list exists, the form is hidden and admins can't change passwords on the
+site.
 
 ### Add an admin
 
@@ -252,16 +255,23 @@ it isn't stored anywhere else except inside the Vercel variable.
 
 ### Change an admin's password
 
-Run the same command with the editor's existing email, enter the new password,
-then update `WIKI_EDITORS` in Vercel and redeploy:
+Use the key icon at the bottom of the sidebar. It applies right away, with no
+redeploy. If an admin forgets their password, another admin can reset it on the
+**Manage Editors** page.
+
+Passwords set on the site are stored in Redis and replace the one in
+`WIKI_EDITORS`, which stays the list of who's an admin. If Redis is down, admins
+sign in with their `WIKI_EDITORS` password instead.
+
+If no admin can sign in, run the same command with the admin's existing email,
+enter the new password, then update `WIKI_EDITORS` in Vercel and redeploy:
 
 ```bash
 npm run add-editor -- someone@asu.edu
 ```
 
-The old password stops working once the new deployment is live. Admins can't
-change their own password from the site, so this is also how to reset a
-forgotten one.
+The new `WIKI_EDITORS` password wins over any password set on the site once the
+new deployment is live.
 
 > Changing a password does **not** sign out sessions that are already signed in
 > (sessions last 7 days). To sign everyone out, see below.
@@ -499,14 +509,14 @@ In MDX, `<` and `{` outside code blocks are treated as code. Put things like
 
 ### Scripts
 
-| Command                         | Description                           |
-| ------------------------------- | ------------------------------------- |
-| `npm run dev`                   | Start development server              |
-| `npm run build`                 | Build for production                  |
-| `npm start`                     | Run the production build              |
-| `npm run lint`                  | Run ESLint                            |
-| `npm run lint -- --fix`         | Auto-fix lint issues                  |
-| `npm run add-editor -- <email>` | Add an admin or change their password |
+| Command                         | Description                            |
+| ------------------------------- | -------------------------------------- |
+| `npm run dev`                   | Start development server               |
+| `npm run build`                 | Build for production                   |
+| `npm start`                     | Run the production build               |
+| `npm run lint`                  | Run ESLint                             |
+| `npm run lint -- --fix`         | Auto-fix lint issues                   |
+| `npm run add-editor -- <email>` | Add an admin or recover their password |
 
 ### Code Quality Checks
 

@@ -1,7 +1,17 @@
 "use server";
 
-import { checkCredentials, hashPassword, requireEditor } from "@/lib/auth";
-import { getAddedEditor, saveAddedEditor } from "@/lib/editors-store";
+import {
+  checkCredentials,
+  hashPassword,
+  isAdmin,
+  requireEditor,
+  setAdminPassword,
+} from "@/lib/auth";
+import {
+  canAddEditors,
+  getAddedEditor,
+  saveAddedEditor,
+} from "@/lib/editors-store";
 import { passwordProblem } from "@/lib/password";
 
 export type ChangePasswordState = { error?: string; message?: string } | null;
@@ -14,9 +24,10 @@ export async function changePassword(
   const current = String(formData.get("current") ?? "");
   const next = String(formData.get("next") ?? "");
 
-  // Admins aren't stored in Redis, so there's nothing here to update.
-  const editor = await getAddedEditor(email);
-  if (!editor)
+  const admin = await isAdmin(email);
+  const editor = admin ? null : await getAddedEditor(email);
+  // Without Redis there's nowhere to keep an admin's new password.
+  if (admin ? !canAddEditors() : !editor)
     return { error: "This account's password can't be changed here." };
 
   if (!(await checkCredentials(email, current))) {
@@ -28,6 +39,10 @@ export async function changePassword(
     return { error: "The new passwords don't match." };
   }
 
-  await saveAddedEditor({ ...editor, hash: await hashPassword(next) });
+  if (editor) {
+    await saveAddedEditor({ ...editor, hash: await hashPassword(next) });
+  } else {
+    await setAdminPassword(email, next);
+  }
   return { message: "Password changed." };
 }

@@ -24,8 +24,8 @@ export default async function EditorsPage() {
           <h2 className="font-medium">Add an editor</h2>
           <p className="text-sm text-muted-foreground">
             Choose a temporary password and send it to them. They can change it
-            after signing in. Adding an existing editor again resets their
-            password.
+            after signing in. Adding an existing editor or admin again resets
+            their password.
           </p>
         </div>
         {canAdd ? (

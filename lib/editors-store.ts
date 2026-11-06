@@ -5,15 +5,24 @@ import { redis, redisConfig } from "@/lib/redis";
 // the WIKI_EDITORS / editors.json list exists (see lib/auth.ts).
 //
 // Keys:
-//   wiki:editors  hash of lowercase email -> JSON of one AddedEditor
+//   wiki:editors          hash of lowercase email -> JSON of one AddedEditor
+//   wiki:admin-passwords  hash of lowercase email -> JSON of one AdminPassword
 
 const KEY = "wiki:editors";
+const ADMIN_PASSWORDS_KEY = "wiki:admin-passwords";
 
 export type AddedEditor = {
   email: string;
   hash: string;
   addedBy: string;
   addedAt: number;
+};
+
+/** A password set on the site for an admin listed in WIKI_EDITORS. */
+export type AdminPassword = {
+  hash: string;
+  /** The WIKI_EDITORS hash this overrides. If that changes, this is ignored. */
+  replaces: string;
 };
 
 export function canAddEditors() {
@@ -41,4 +50,22 @@ export async function saveAddedEditor(editor: AddedEditor) {
 
 export async function removeAddedEditor(email: string) {
   await redis([["HDEL", KEY, email]]);
+}
+
+export async function getAdminPassword(
+  email: string,
+): Promise<AdminPassword | null> {
+  if (!redisConfig()) return null;
+  const [value] = (await redis([["HGET", ADMIN_PASSWORDS_KEY, email]])) as (
+    | string
+    | null
+  )[];
+  return value ? JSON.parse(value) : null;
+}
+
+export async function saveAdminPassword(
+  email: string,
+  password: AdminPassword,
+) {
+  await redis([["HSET", ADMIN_PASSWORDS_KEY, email, JSON.stringify(password)]]);
 }

@@ -1,7 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { hashPassword, isAdmin, requireAdmin } from "@/lib/auth";
+import {
+  hashPassword,
+  isAdmin,
+  requireAdmin,
+  setAdminPassword,
+} from "@/lib/auth";
 import {
   canAddEditors,
   getAddedEditor,
@@ -18,7 +23,7 @@ export type AddEditorState = {
   email?: string;
 } | null;
 
-/** Adds an editor, or sets a new password if the email is already an editor. */
+/** Adds an editor, or sets a new password if the email is already an editor or admin. */
 export async function addEditor(
   _previous: AddEditorState,
   formData: FormData,
@@ -39,10 +44,8 @@ export async function addEditor(
   const problem = passwordProblem(password);
   if (problem) return { error: problem, email };
   if (await isAdmin(email)) {
-    return {
-      error: `${email} is an admin. Admin passwords are changed with npm run add-editor.`,
-      email,
-    };
+    await setAdminPassword(email, password);
+    return { message: `Set a new password for ${email}.` };
   }
 
   const existing = await getAddedEditor(email);

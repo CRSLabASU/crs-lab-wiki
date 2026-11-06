@@ -4,14 +4,20 @@ import path from "node:path";
 import { promisify } from "node:util";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { getAddedEditor, listAddedEditors } from "@/lib/editors-store";
+import {
+  getAddedEditor,
+  getAdminPassword,
+  listAddedEditors,
+  saveAdminPassword,
+} from "@/lib/editors-store";
 
 // Editors are an allow list of emails with scrypt-hashed passwords, from two
 // places:
 // - Admins: read from `editors.json` (or WIKI_EDITORS_FILE). Add one with
 //   `npm run add-editor`. On hosts without a persistent disk, put the same JSON
 //   in WIKI_EDITORS. They're checked first and need no network call, so a Redis
-//   outage can't lock them out.
+//   outage can't lock them out. That list decides who's an admin; a password
+//   they set on the site is kept in Redis and only read at sign-in.
 // - Editors added by an admin on the Manage Editors page, kept in Redis (see
 //   lib/editors-store.ts).
 
@@ -55,6 +61,26 @@ async function findEditor(email: string): Promise<Editor | null> {
     (await findAdmin(email)) ??
     (await getAddedEditor(email.trim().toLowerCase()))
   );
+}
+
+/** An admin's password hash: the one set on the site, unless WIKI_EDITORS changed since. */
+async function adminHash(admin: Editor) {
+  try {
+    const saved = await getAdminPassword(admin.email.toLowerCase());
+    return saved?.replaces === admin.hash ? saved.hash : admin.hash;
+  } catch {
+    // Redis is down: fall back to the WIKI_EDITORS password.
+    return admin.hash;
+  }
+}
+
+export async function setAdminPassword(email: string, password: string) {
+  const admin = await findAdmin(email);
+  if (!admin) throw new Error(`${email} is not an admin.`);
+  await saveAdminPassword(admin.email.toLowerCase(), {
+    hash: await hashPassword(password),
+    replaces: admin.hash,
+  });
 }
 
 export async function isAdmin(email: string) {
@@ -116,7 +142,10 @@ function sign(payload: string) {
 }
 
 export async function checkCredentials(email: string, password: string) {
-  const editor = await findEditor(email);
+  const admin = await findAdmin(email);
+  const editor = admin
+    ? { email: admin.email, hash: await adminHash(admin) }
+    : await getAddedEditor(email.trim().toLowerCase());
   // Still hash when the email is unknown so response time doesn't reveal the allow list.
   const ok = await verifyPassword(
     password,
