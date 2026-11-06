@@ -1,0 +1,396 @@
+---
+name: UR5 with Robotiq Gripper
+platform: Collaborative Robot Arm
+status: OPERATIONAL
+location: "CRS Lab – Brickyard 2nd Floor"
+maintainers:
+  - "Ali Kefel, Taha Saheen, Nick Huynh, Faisal Alyousefi"
+summary: "6-DOF Universal Robots UR5 (CB3) collaborative arm with a Robotiq 2F gripper, controlled from a workstation over Ethernet with ur_rtde."
+thumbnail: "/robot-media/ur5/images/ur5.jpg"
+resources:
+  - label: 0_test.py (connection check and motion test)
+    file: /robot-media/ur5/scripts/0_test.py
+    type: file
+  - label: UR5 Technical Specifications (CB3)
+    file: https://www.universal-robots.com/media/50573/ur5_bz.pdf
+    type: doc
+  - label: ur_rtde Documentation and Examples
+    file: https://sdurobotics.gitlab.io/ur_rtde/
+    type: doc
+  - label: ur_rtde Python API Reference
+    file: https://sdurobotics.gitlab.io/ur_rtde/api/api.html
+    type: doc
+  - label: ur_rtde Source Code (GitLab)
+    file: https://gitlab.com/sdurobotics/ur_rtde
+    type: doc
+  - label: URScript Manual (Downloads → CB-Series → Software → Script Manual 3.15)
+    file: https://www.universal-robots.com/download/
+    type: doc
+  - label: RTDE Guide (Port 30004)
+    file: https://www.universal-robots.com/articles/ur/interface-communication/real-time-data-exchange-rtde-guide/
+    type: doc
+  - label: Dashboard Server Commands (Port 29999)
+    file: https://www.universal-robots.com/articles/ur/dashboard-server-cb-series-port-29999/
+    type: doc
+  - label: Overview of Client Interfaces (Ports 30001–30004)
+    file: https://www.universal-robots.com/articles/ur/interface-communication/overview-of-client-interfaces/
+    type: doc
+  - label: Robotiq 2F-85/2F-140 Manual (CB-Series UR)
+    file: https://assets.robotiq.com/website-assets/support_documents/document/2F-85_2F-140_Instruction_Manual_CB-Series_PDF_20190122.pdf
+    type: doc
+  - label: Robotiq Support and URCap Downloads
+    file: https://robotiq.com/support/2f-85-2f-140
+    type: doc
+  - label: UR ROS 2 Driver (GitHub)
+    file: https://github.com/UniversalRobots/Universal_Robots_ROS2_Driver
+    type: doc
+  - label: UR ROS 2 Driver Documentation
+    file: https://docs.universal-robots.com/Universal_Robots_ROS2_Documentation/
+    type: doc
+---
+
+### Executive summary
+
+**UR5 with Gripper** — Collaborative Robot Arm
+
+| Field               | Value                                                |
+| ------------------- | ---------------------------------------------------- |
+| Platform Type       | Collaborative Robot Arm                              |
+| Manufacturer        | Universal Robots                                     |
+| Model               | UR5 (CB3)                                            |
+| Gripper             | Robotiq                                              |
+| Lab Inventory ID    | _TBD_                                                |
+| Current Status      | OPERATIONAL                                          |
+| Last Validated      | _TBD_                                                |
+| Location            | CRS Lab – Brickyard 2nd Floor                        |
+| Primary Maintainers | Ali Kefel, Taha Saheen, Nick Huynh, Faisal Alyousefi |
+
+The UR5 is a mid-size, 6-axis collaborative robot arm with a 5 kg payload and 850 mm reach. It is programmed from the PolyScope teach pendant or controlled externally through ROS.
+
+The lab controls the arm and the **Robotiq 2F-85 / 2F-140 gripper** from a workstation over Ethernet, using the [`ur_rtde`](https://sdurobotics.gitlab.io/ur_rtde/) Python library for the arm and a plain TCP socket for the gripper.
+
+## Hardware
+
+### Physical overview
+
+The arm is a Universal Robots **UR5** on the CB3 controller: six joints, a control box and the PolyScope teach pendant. A **Robotiq 2F-85 / 2F-140** two-finger gripper is mounted on the wrist. The gripper is wired to the controller's internal USB-to-RS485 bus, and the Robotiq URCap on the controller exposes it over the network.
+
+The arm runs on wall power and should stay plugged in. See the [charging page](/charging).
+
+### Specifications
+
+| Spec                  | Value                  |
+| --------------------- | ---------------------- |
+| Degrees of freedom    | 6                      |
+| Payload               | 5 kg                   |
+| Reach                 | 850 mm                 |
+| Controller            | CB3 (PolyScope)        |
+| RTDE update rate      | 125 Hz (8 ms)          |
+| Gripper               | Robotiq 2F-85 / 2F-140 |
+| Gripper speed (2F-85) | ~20 to ~150 mm/s       |
+| Gripper force (2F-85) | ~20 to ~235 N          |
+
+## Software & Setup
+
+### System architecture
+
+The lab controls the arm from a workstation over Ethernet with the [`ur_rtde`](https://sdurobotics.gitlab.io/ur_rtde/) Python library, and the gripper with a plain TCP socket. Everything goes through four TCP ports on the controller:
+
+| Port    | Interface                         | Protocol                         | What it's for                                                                                                                                   |
+| ------- | --------------------------------- | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `29999` | UR Dashboard Server               | Plain-text TCP (`\n` terminated) | Power on, release brakes, clear safety popups, unlock protective stops, query robot state. Everything you'd otherwise tap on the teach pendant. |
+| `30002` | UR Secondary Client               | Raw URScript over TCP            | Runs URScript immediately. `RTDEControlInterface` uses it on startup to upload `rtde_control.script` into the controller's RAM.                 |
+| `30004` | UR RTDE (Real-Time Data Exchange) | Binary TCP, 125 Hz on CB3        | Reads robot state every 8 ms (`RTDEReceiveInterface`) and streams setpoints (`RTDEControlInterface`, `RTDEIOInterface`).                        |
+| `63352` | Robotiq URCap socket server       | Plain-text TCP (`GET` / `SET`)   | Bridges socket commands on the controller to the gripper's internal USB-to-RS485 bus. Works independently of the arm.                           |
+
+<Callout type="info">
+  On this page, "TCP" means two different things. In port and socket names it is
+  the Transmission Control Protocol. In the motion APIs (`getActualTCPPose`,
+  `setTcp`) it is the Tool Center Point: the point on the tool that poses,
+  speeds and forces are measured at.
+</Callout>
+
+### Access
+
+1. Connect the workstation to the controller with an Ethernet cable.
+2. Give the workstation an address on the controller's subnet. The controller's default IP is `192.168.1.123`.
+3. Install the library: `pip install ur_rtde`.
+4. Run the [connection test](#connection-test) to check everything is reachable.
+
+### Boot & power
+
+1. Power on the control box and wait for PolyScope to load on the teach pendant.
+2. On the teach pendant, go to **Initialize Robot**, press **ON**, then **START** to release the brakes. The arm is ready when it reports robot mode `7` (RUNNING).
+3. When you're done, power the arm off from the teach pendant, or send `power off` to the dashboard server. `shutdown` shuts down the whole control box.
+
+You can also power on remotely by sending `power on` then `brake release` to port `29999`. See [Dashboard commands](#dashboard-commands-port-29999).
+
+### Gripper control
+
+The Robotiq URCap runs a small server on port `63352` of the controller. Send one command per line:
+
+- **Write:** `SET <VAR> <VALUE>\n` returns `ack`
+- **Read:** `GET <VAR>\n` returns `<VAR> <VALUE>`
+
+After power-up, activate the gripper with `SET ACT 0` then `SET ACT 1`, wait until `GET STA` returns `3`, then set `GTO` to `1`. The `RobotiqGripper` class in the test script does this for you. All registers are listed under [Gripper registers](#gripper-registers).
+
+## Validation & Diagnostics
+
+### Connection test
+
+[`0_test.py`](/robot-media/ur5/scripts/0_test.py) checks that the workstation can reach the arm and gripper, then runs a short motion test. Run it first whenever you set up a new machine or something seems off.
+
+```bash
+python3 0_test.py
+```
+
+What it does:
+
+1. **Ping:** checks the controller answers at `ROBOT_IP`.
+2. **Ports:** checks all four ports above are open.
+3. **Arm state (no motion):** reads the robot mode, safety mode and joint angles over RTDE.
+4. **Gripper state (no motion):** reads the gripper's status, position, speed and force over port `63352`.
+5. **Motion test:** only if the arm is in mode `7` (RUNNING) with a normal or reduced safety mode:
+   - Moves the arm to an upright ready pose with `moveJ`.
+   - Closes the gripper, then opens it.
+   - Watches for an emergency or protective stop while the gripper moves, and opens the gripper immediately if one happens.
+
+If any check fails, the script stops and prints what to fix before anything moves.
+
+<Callout type="warning">
+  Step 5 moves the arm. Clear the space around it and keep a hand near the
+  E-Stop before running the script.
+</Callout>
+
+If any check fails, the script stops and prints what to fix before anything moves. The ping step uses macOS's `ping -t` (timeout) flag; on Linux, `-t` sets the TTL instead, so change it to `-W 2` there.
+
+### Test script settings
+
+Change these at the top of `0_test.py`:
+
+| Setting              | Default                                         | Range and meaning                                                                        |
+| -------------------- | ----------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `ROBOT_IP`           | `192.168.1.123`                                 | Controller IP. It's set twice in the file, so change both.                               |
+| `ROBOTIQ_SPEED`      | `50`                                            | `0` (~20 mm/s, ~4.2 s full stroke) to `255` (~150 mm/s, ~0.55 s full stroke)             |
+| `ROBOTIQ_FORCE`      | `10`                                            | `0` (~20 N, finger-safe) to `255` (~235 N maximum clamping force)                        |
+| `UR5_SPEED_SLIDER`   | `1.00`                                          | Global speed slider, `0.01` (1%) to `1.00` (100%)                                        |
+| `UR5_MOVEJ_SPEED`    | `1.05`                                          | Joint speed, `0.01` to `3.14` rad/s. `1.05` (60°/s) is the UR default.                   |
+| `UR5_MOVEJ_ACCEL`    | `1.40`                                          | Joint acceleration, `0.01` to `8.00` rad/s². `1.40` is the UR default.                   |
+| `TARGET_BASE_JOINTS` | `[0.0, -1.5708, 1.5708, -1.5708, -1.5708, 0.0]` | Ready pose in radians: base and wrist 3 centered, shoulder -90°, elbow +90°, wrists -90° |
+
+## Troubleshooting
+
+| Issue                                       | Possible Cause                                              | Solution                                                                                            |
+| ------------------------------------------- | ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| Ping or port check fails                    | Wrong cable, IP or subnet                                   | Check the Ethernet cable and that the workstation is on the controller's subnet                     |
+| Test stops with "not in Mode 7"             | Arm is powered off (mode `3`) or brakes locked (mode `5`)   | Teach pendant → **Initialize Robot** → **ON** → **START**, or send `power on` then `brake release`  |
+| Arm froze mid-move                          | Protective stop (safety mode `3`) from a collision or limit | Clear the popup, or wait 5 s and send `unlock protective stop`, then call `rtde_c.reuploadScript()` |
+| Arm won't power on                          | E-Stop pressed (safety mode `7`)                            | Twist the teach pendant E-Stop to release it, then power on and release the brakes                  |
+| `ur_rtde` stops responding after a URScript | A script sent to port `30002` replaced `ur_rtde`'s script   | Call `rtde_c.reuploadScript()`                                                                      |
+| Gripper ignores `POS`                       | Not activated (`STA` isn't `3`) or `GTO` is `0`             | `SET ACT 0`, `SET ACT 1`, wait for `STA` = `3`, then `SET GTO 1`                                    |
+| Gripper fault `13`                          | Something blocked the fingers during activation             | Clear the fingers, then `SET ACT 0` and `SET ACT 1` again                                           |
+| Gripper fault `8`                           | Gripper motor overheated                                    | Let it cool down                                                                                    |
+
+Full code lists are under [Robot modes](#robot-modes), [Safety modes](#safety-modes) and [Gripper registers](#gripper-registers).
+
+## Safety & Maintenance
+
+<Callout type="danger">
+  The connection test and any `ur_rtde` script move the arm. Clear the space
+  around it and keep a hand near the E-Stop before running anything.
+</Callout>
+
+<Callout type="warning">
+  The base joint can be on a different revolution (for example -2π instead of
+  0). If the arm's current base angle is near -6.28 rad, moving to a base of
+  `0.0` spins it almost a full turn. The file has a commented-out ready pose
+  with a base of `-6.2832` for that case.
+</Callout>
+
+### Best practices
+
+- Test grasps with a low `FOR` (gripper force); `0` is finger-safe
+- End scripts with `rtde_c.stopScript()` so the controller isn't left running the `ur_rtde` script
+- Don't send URScript to port `30002` while `RTDEControlInterface` is connected
+- Keep the controller plugged in
+- Log all sessions in the change log
+
+## Reference
+
+### Lab access
+
+- **Location:** Brickyard, 2nd floor
+- **Door:** Does NOT close properly — pull it shut behind you
+- **Keycard access:** We do NOT have keycard access
+- **To get in:** Contact **Taha** (usually 5th floor, 11am–7pm)
+
+### Gripper registers
+
+| Register | Access     | Values                                                                                                                                                                                                           |
+| -------- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ACT`    | Read/write | `0` deactivates and resets the gripper, clearing faults. `1` runs the activation stroke. It must go from `0` to `1` after power-up.                                                                              |
+| `GTO`    | Read/write | Works like a clutch. `0` stops the fingers where they are; `1` moves them to match `POS`.                                                                                                                        |
+| `POS`    | Read/write | `0` (wide open) to `255` (fully closed). `GET POS` reads where the fingers actually are: about `3` when open (~0.33 mm per count on the 2F-85, because of the rubber bumpers), `230` to `255` when closed empty. |
+| `SPE`    | Read/write | `0` (~20 mm/s, ~4.2 s full stroke) to `255` (~150 mm/s, ~0.55 s full stroke) on the 2F-85.                                                                                                                       |
+| `FOR`    | Read/write | `0` (~20 N, finger-safe) to `255` (~235 N) on the 2F-85. Above `0`, the gripper re-tightens if a grasped object slips.                                                                                           |
+| `STA`    | Read-only  | Activation status. See below.                                                                                                                                                                                    |
+| `OBJ`    | Read-only  | Object detection. See below.                                                                                                                                                                                     |
+| `FLT`    | Read-only  | Fault code. See below.                                                                                                                                                                                           |
+| `COU`    | Read-only  | Motor current, `0` to `255`. Roughly `COU` × 100 mA.                                                                                                                                                             |
+
+**`STA` status codes**
+
+| Value | Meaning                                                                                                    |
+| ----- | ---------------------------------------------------------------------------------------------------------- |
+| `0`   | Reset or deactivated. The motor is unpowered and uncalibrated, and ignores `POS` commands until activated. |
+| `1`   | Activation in progress: the ~2.5 s open/close stroke that finds the mechanical end stops.                  |
+| `3`   | Activation complete. Ready for motion commands. (`2` isn't used on 2F grippers.)                           |
+
+**`OBJ` object detection.** The gripper tells whether it grasped something by comparing motor current (`COU`) with finger movement (`POS`).
+
+| Value | Meaning                                                                                                                                          |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `0`   | Fingers are moving toward the target `POS`.                                                                                                      |
+| `1`   | Stopped by contact while **opening**, for example the backs of the fingers hit the inside of a hollow cylinder. The motor keeps pushing outward. |
+| `2`   | Stopped by contact while **closing**: **object grasped**. The motor reached the target force (`FOR`) before `POS` and is holding the object.     |
+| `3`   | Reached the requested `POS` without touching anything (no object).                                                                               |
+
+**`FLT` fault codes**
+
+| Code | Meaning                                                                         |
+| ---- | ------------------------------------------------------------------------------- |
+| `0`  | No fault.                                                                       |
+| `5`  | Action delayed: activation (`ACT`) must finish before `GTO` motion.             |
+| `7`  | The activation bit (`ACT`) must be set first.                                   |
+| `8`  | Maximum operating temperature exceeded. The motor overheated; let it cool down. |
+| `9`  | No communication for at least 1 second.                                         |
+| `10` | Below the minimum operating voltage (18 V DC).                                  |
+| `11` | Automatic release in progress.                                                  |
+| `12` | Internal microcontroller fault.                                                 |
+| `13` | Activation fault: something blocked the fingers during the `SET ACT 1` stroke.  |
+| `14` | Overcurrent.                                                                    |
+| `15` | Automatic release completed.                                                    |
+
+### ur_rtde API
+
+**`RTDEControlInterface(ip)`: motion and control**
+
+| Method            | Signature                                                       | Description                                                                                                                                                                      |
+| ----------------- | --------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `moveJ`           | `moveJ(q, speed=1.05, acceleration=1.4, async=False)`           | Point-to-point move in joint space. `q`: 6 joint angles (rad). `speed`: rad/s, up to 3.14. `acceleration`: rad/s².                                                               |
+| `moveL`           | `moveL(pose, speed=0.25, acceleration=1.2, async=False)`        | Straight-line tool move. `pose`: `[x, y, z, rx, ry, rz]` in meters and axis-angle radians.                                                                                       |
+| `servoJ`          | `servoJ(q, speed, acceleration, time, lookahead_time, gain)`    | Streams joint positions at 125 Hz, for policies. Use `time=0.008`, `lookahead_time` 0.03 to 0.2, `gain` 100 to 2000. Pass `0.0` for `speed` and `acceleration`; they're ignored. |
+| `servoL`          | `servoL(pose, speed, acceleration, time, lookahead_time, gain)` | Streams Cartesian poses at 125 Hz.                                                                                                                                               |
+| `speedJ`          | `speedJ(qd, acceleration=1.4, time=0.008)`                      | Streams joint velocities at 125 Hz. `qd`: 6 joint velocities (rad/s).                                                                                                            |
+| `speedL`          | `speedL(xd, acceleration=1.2, time=0.008)`                      | Streams Cartesian velocities at 125 Hz. `xd`: `[vx, vy, vz, wx, wy, wz]`.                                                                                                        |
+| `servoStop`       | `servoStop(a=10.0)`                                             | Smoothly stops a `servoJ` or `servoL` stream at deceleration `a` (rad/s²).                                                                                                       |
+| `speedStop`       | `speedStop(a=10.0)`                                             | Smoothly stops a `speedJ` or `speedL` stream.                                                                                                                                    |
+| `stopJ` / `stopL` | `stopJ(a=2.0)` / `stopL(a=10.0)`                                | Stops an asynchronous `moveJ` or `moveL`.                                                                                                                                        |
+| `teachMode`       | `teachMode()`                                                   | Turns on Freedrive (gravity-compensated) so you can move the arm by hand.                                                                                                        |
+| `endTeachMode`    | `endTeachMode()`                                                | Turns off Freedrive and locks position control back in.                                                                                                                          |
+| `setPayload`      | `setPayload(mass, cog)`                                         | Sets the tool payload mass (kg) and center of gravity `[x, y, z]` (m) relative to the tool flange.                                                                               |
+| `setTcp`          | `setTcp(tcp_offset)`                                            | Sets the Tool Center Point `[x, y, z, rx, ry, rz]` relative to the tool flange.                                                                                                  |
+| `stopScript`      | `stopScript()`                                                  | Cleanly stops the background URScript on the controller.                                                                                                                         |
+| `reuploadScript`  | `reuploadScript()`                                              | Re-uploads the `ur_rtde` control script over port `30002`. Needed after recovering from a protective stop.                                                                       |
+
+**`RTDEReceiveInterface(ip)`: reading state**
+
+| Method                | Returns                    | Description                                                                                 |
+| --------------------- | -------------------------- | ------------------------------------------------------------------------------------------- |
+| `getActualQ()`        | 6 floats (rad)             | Measured joint positions.                                                                   |
+| `getActualQd()`       | 6 floats (rad/s)           | Measured joint velocities.                                                                  |
+| `getTargetQ()`        | 6 floats (rad)             | The controller's target joint positions.                                                    |
+| `getActualTCPPose()`  | `[x, y, z, rx, ry, rz]`    | Tool Center Point pose in the base frame (meters and axis-angle radians).                   |
+| `getActualTCPSpeed()` | `[vx, vy, vz, wx, wy, wz]` | Tool Center Point velocity in the base frame.                                               |
+| `getActualTCPForce()` | `[Fx, Fy, Fz, Tx, Ty, Tz]` | Estimated external force (N) and torque (Nm) at the Tool Center Point, from motor currents. |
+| `getActualCurrent()`  | 6 floats (A)               | Current drawn by each joint motor.                                                          |
+| `getTargetMoment()`   | 6 floats (Nm)              | Target torque at each joint.                                                                |
+| `getRobotMode()`      | int, `-1` to `8`           | Power and brake state. See [Robot modes](#robot-modes).                                     |
+| `getSafetyMode()`     | int, `1` to `9`            | Safety controller state. See [Safety modes](#safety-modes).                                 |
+| `getSpeedScaling()`   | float, `0.0` to `1.0`      | Active speed scaling, including the teach pendant slider and safety scaling.                |
+
+**`RTDEIOInterface(ip)`: I/O and speed slider**
+
+| Method                              | Parameters                       | Description                                               |
+| ----------------------------------- | -------------------------------- | --------------------------------------------------------- |
+| `setSpeedSlider(val)`               | `val`: `0.0` to `1.0`            | Sets the controller's global speed slider (`0.20` = 20%). |
+| `setStandardDigitalOut(pin, state)` | `pin`: `0` to `7`, `state`: bool | Sets a 24 V digital output in the control box.            |
+| `setToolDigitalOut(pin, state)`     | `pin`: `0` or `1`, `state`: bool | Sets a digital output on the wrist tool connector.        |
+
+### URScript (port 30002)
+
+Port `30002` runs any URScript it receives immediately. `ur_rtde` depends on it: port `30004` only syncs numbers in memory and can't move the motors by itself. On startup, `RTDEControlInterface` uploads [`rtde_control.script`](https://gitlab.com/sdurobotics/ur_rtde/-/blob/master/scripts/rtde_control.script) through port `30002`. That script runs a 125 Hz loop that reads the RTDE registers and calls native URScript functions (`movej`, `servoj`, `speedj`, `teach_mode`).
+
+One-off commands work too:
+
+```python
+popup("Hello", title="Info")
+set_gravity([0.0, 0.0, 9.82])
+```
+
+Sending URScript while `RTDEControlInterface` is connected replaces `ur_rtde`'s script, so call `rtde_c.reuploadScript()` afterwards.
+
+### Dashboard commands (port 29999)
+
+Open a TCP socket to `(ROBOT_IP, 29999)`, or use `DashboardClient` from `ur_rtde`, and send these commands, each ending in `\n`:
+
+| Command                   | Description                                                                                                     |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `power on`                | Powers the arm's 48 V motor drives (mode `3` to `5`).                                                           |
+| `brake release`           | Releases the joint brakes (mode `5` to `7`, RUNNING).                                                           |
+| `power off`               | Cuts arm power and engages the brakes.                                                                          |
+| `unlock protective stop`  | Clears a protective stop (safety mode `3` to `1`). The firmware won't accept it until 5 seconds after the stop. |
+| `close safety popup`      | Closes the safety dialog on the teach pendant.                                                                  |
+| `close popup`             | Closes a regular message popup on the teach pendant.                                                            |
+| `load <program.urp>`      | Loads a `.urp` program stored on the controller.                                                                |
+| `play` / `pause` / `stop` | Starts, pauses or stops the loaded program.                                                                     |
+| `robotmode`               | Returns the current robot mode.                                                                                 |
+| `safetymode`              | Returns the current safety mode.                                                                                |
+| `running`                 | Returns `Program running: true` or `false`.                                                                     |
+| `popup <message>`         | Shows a popup on the teach pendant.                                                                             |
+| `shutdown`                | Cleanly shuts down the control box and powers off the system.                                                   |
+
+### Robot modes
+
+Returned by `rtde_r.getRobotMode()`. Shows the arm's power and brake state.
+
+| Code | Name                | Meaning and what to do                                                                                                              |
+| ---- | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `-1` | `NO_CONTROLLER`     | Controller software isn't running yet.                                                                                              |
+| `0`  | `DISCONNECTED`      | The arm cable is unplugged from the control box.                                                                                    |
+| `1`  | `CONFIRM_SAFETY`    | Waiting for safety confirmation at startup.                                                                                         |
+| `2`  | `BOOTING`           | The control box and joints are booting.                                                                                             |
+| `3`  | `POWER_OFF`         | Arm power is off and the brakes are locked. Send `power on` then `brake release`, or use **Initialize Robot** on the teach pendant. |
+| `4`  | `POWER_ON`          | Power is coming on and the joints are initializing.                                                                                 |
+| `5`  | `IDLE`              | Powered on, but the brakes are still locked. Press **START** on the teach pendant, or send `brake release`.                         |
+| `6`  | `BACKDRIVE`         | Freedrive or backdrive recovery is active.                                                                                          |
+| `7`  | `RUNNING`           | **Normal.** Powered on, brakes released, ready for `RTDEControlInterface` commands.                                                 |
+| `8`  | `UPDATING_FIRMWARE` | A joint firmware update is in progress.                                                                                             |
+
+### Safety modes
+
+Returned by `rtde_r.getSafetyMode()`. Shows the safety controller's state.
+
+| Code | Name                    | Meaning and what to do                                                                                                                                                                                      |
+| ---- | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `1`  | `NORMAL`                | **Normal.** All safety checks pass at full limits.                                                                                                                                                          |
+| `2`  | `REDUCED`               | An external safety input lowered the speed and momentum limits. The arm can still move.                                                                                                                     |
+| `3`  | `PROTECTIVE_STOP`       | The arm froze after a collision, a force spike or nearing a joint limit (±360°). Clear the popup on the teach pendant (or wait 5 s and send `unlock protective stop`), then call `rtde_c.reuploadScript()`. |
+| `4`  | `RECOVERY`              | A joint is slightly outside a safety limit. Jog it back inside the limits on the teach pendant.                                                                                                             |
+| `5`  | `SAFEGUARD_STOP`        | An external safeguard circuit (light curtain, door interlock) is open.                                                                                                                                      |
+| `6`  | `SYSTEM_EMERGENCY_STOP` | An external E-Stop circuit is open.                                                                                                                                                                         |
+| `7`  | `ROBOT_EMERGENCY_STOP`  | The red E-Stop on the teach pendant is pressed. Twist it to release, then power on and release the brakes.                                                                                                  |
+| `8`  | `VIOLATION`             | Hard safety violation, such as a sudden joint jump or too much torque error. Arm power is cut; re-initialize on the teach pendant.                                                                          |
+| `9`  | `FAULT`                 | The safety controller found a hardware fault. Reboot the controller.                                                                                                                                        |
+
+### Demo scripts
+
+| Demo                       | Command             |
+| -------------------------- | ------------------- |
+| Connection and motion test | `python3 0_test.py` |
+
+### Change log
+
+| Date       | Change                                                                   | Author    |
+| ---------- | ------------------------------------------------------------------------ | --------- |
+| 2026-10-27 | Added network and API reference, connection test script, troubleshooting | Ali Kefel |

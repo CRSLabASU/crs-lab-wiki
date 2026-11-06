@@ -1,0 +1,606 @@
+---
+name: Kinova MOVO
+nickname: "The Tank"
+platform: Mobile Manipulation Platform
+status: OPERATIONAL
+lastChecked: "2026-10-26"
+location: "CRS Lab – Brickyard 2nd Floor"
+maintainers:
+  - "Ali Kefel, Taha Saheen, Nick Huynh, Faisal Alyousefi"
+summary: "Mobile manipulation platform with two 6-DOF JACO2 arms. Base, left arm, sensors and auto-bringup working; right arm awaiting Kinova support."
+thumbnail: "/robot-media/kinova_movo/images/IMG_7100.JPG"
+resources:
+  - label: SDK User Guide
+    file: /robot-media/kinova_movo/docs/UG-008_KINOVA_Software_development_kit-User_guide_EN_R02 (1).pdf
+    type: doc
+  - label: Gen2 Ultra Lightweight Robot User Guide
+    file: /robot-media/kinova_movo/docs/EN-UG-009-Gen2-Ultra-lightweight-robot-user-guide-r4.1.pdf
+    type: doc
+  - label: Ultra Lightweight 6-DOF Specifications
+    file: /robot-media/kinova_movo/docs/EN-TS-009-Ultra-Lightweight-6-dof-specifications-r2.0.pdf
+    type: doc
+  - label: JACO User Guide
+    file: /robot-media/kinova_movo/docs/EN-UG-007-Jaco-user-guide-R05.pdf
+    type: doc
+---
+
+### Executive summary
+
+**Kinova MOVO** — Mobile Manipulation Platform
+
+| Field               | Value                                                |
+| ------------------- | ---------------------------------------------------- |
+| Platform Type       | Mobile Manipulation Robot                            |
+| Manufacturer        | Kinova Robotics                                      |
+| Model               | MOVO                                                 |
+| Lab Inventory ID    | _TBD_                                                |
+| Current Status      | PARTIALLY OPERATIONAL                                |
+| Last Validated      | 2026-10-26                                           |
+| Location            | CRS Lab – Brickyard 2nd Floor                        |
+| Primary Maintainers | Taha Saheen, Ali Kefel, Nick Huynh, Faisal Alyousefi |
+
+The Kinova MOVO is a mobile manipulation platform with two **6-DOF Kinova JACO2 arms** (KG3 grippers), an omnidirectional mobile base, a pan-tilt head with a Kinect v2, two SICK lidars and a linear-actuator torso. It was selected for assessment and repair as part of the capstone project.
+
+**Current state:** the robot brings itself up automatically at power-on (stands up, homes the arms, enables the base). The base, head and left arm are drivable with the joystick. The right arm executes MoveIt trajectories and moves from Kinova's Development Center, but ignores joystick (Cartesian) commands. A Kinova support ticket is open (see [Right arm issue](#right-arm-issue)).
+
+## Hardware
+
+### Physical overview
+
+<Image
+  src="/robot-media/kinova_movo/images/MOVO_sections.jpg"
+  alt="Full MOVO Platform"
+  size="medium"
+/>
+<Image
+  src="/robot-media/kinova_movo/images/adustable_height.jpg"
+  alt="Home position illustrated on the right"
+  size="medium"
+/>
+
+<Image
+  src="/robot-media/kinova_movo/images/IMG_7120.JPG"
+  alt="Fron view of the MOVO with upper torso shell on"
+  size="medium"
+/>
+
+<Image
+  src="/robot-media/kinova_movo/images/control-panel.jpg"
+  alt="MOVO control panel detail"
+  size="medium"
+/>
+
+<Image
+  src="/robot-media/kinova_movo/images/IMG_7367.JPG"
+  alt="MOVO in HOME position with upper torso shell removed"
+  size="medium"
+/>
+
+### Onboard computers
+
+Both onboard PCs are **Intel NUC5i7RYH** units (board `NUC5i7RYB`).
+
+| PC    | IP            | Role                                                          | Workspace     |
+| ----- | ------------- | ------------------------------------------------------------- | ------------- |
+| movo2 | `10.66.171.1` | ROS master, arm controllers, joystick, Kinect v2 (USB)        | `~/movo_ws_2` |
+| movo1 | `10.66.171.2` | Base driver, lidars, teleop, MoveIt, head/torso (`movo-core`) | `~/movo_ws`   |
+
+<Callout type="warning">
+  movo2's CMOS battery is dead (it boots with the clock set to 2013). This is
+  worked around automatically at boot, but the battery should be replaced. Both
+  PCs are NUC5i7RYH and use a CR2032 with a 2-pin lead under the bottom cover.
+</Callout>
+
+### Arms
+
+| Arm   | IP             | Serial (in firmware) | Arm type             | Main firmware |
+| ----- | -------------- | -------------------- | -------------------- | ------------- |
+| Left  | `10.66.171.16` | `WO505852-0`         | JACO v2 6DOF Assist  | 6.2.11.0      |
+| Right | `10.66.171.15` | `RIGHT ARM`          | JACO v2 6DOF Service | 6.2.11.0      |
+
+Two spare JACO2 arm bases are in storage, labeled `WO505413-0` and `WO505414-0`. Their origin is unknown.
+
+## Software & Setup
+
+### System architecture
+
+- **Ubuntu 14.04** on both PCs (upstart, no systemd)
+- **ROS Indigo** for robot control
+- **MoveIt!** for motion planning
+- **Kinova API 6.0.1** (Gen2) for the JACO2 arms. This is _not_ Kortex, which is Gen3 only.
+- **MOVO software v1.1.0** (`kinova-movo`)
+- **Gazebo** for simulation
+
+### Networking
+
+<Callout type="info">
+  The internal network is `10.66.171.0/24`. MOVO also broadcasts the Wi-Fi
+  network **MoVoWifi**.
+
+| Device         | IP             |
+| -------------- | -------------- |
+| movo2 PC       | `10.66.171.1`  |
+| movo1 PC       | `10.66.171.2`  |
+| Base (Vector)  | `10.66.171.5`  |
+| Front lidar    | `10.66.171.8`  |
+| Rear lidar     | `10.66.171.9`  |
+| Right arm base | `10.66.171.15` |
+| Left arm base  | `10.66.171.16` |
+
+</Callout>
+
+### Connecting to MOVO
+
+#### 1. Plug in
+
+Connect an ethernet cable from your laptop to a free port on the robot's internal switch, or join **MoVoWifi**.
+
+#### 2. Give your laptop an address on the robot's network
+
+A direct ethernet connection usually has no DHCP, so set a static IP of **`10.66.171.100`**, mask **`255.255.255.0`**, and no gateway. Pick a different `.1xx` address if someone else is already connected.
+
+**Linux:**
+
+```bash
+ip link                                       # find your ethernet interface, e.g. enp3s0
+sudo ip addr add 10.66.171.100/24 dev enp3s0
+```
+
+**macOS** (adds the address alongside any existing one; resets on unplug or reboot):
+
+```bash
+networksetup -listallhardwareports            # find your ethernet device, e.g. en7
+sudo ifconfig en7 alias 10.66.171.100 255.255.255.0
+```
+
+**Windows:** go to Settings → Network → Ethernet → IP assignment → Manual → IPv4, then enter IP `10.66.171.100` and subnet `255.255.255.0`.
+
+#### 3. Add hostnames (optional, one time)
+
+Add these lines to `/etc/hosts` (or `C:\Windows\System32\drivers\etc\hosts`):
+
+```
+10.66.171.2 movo1
+10.66.171.1 movo2
+```
+
+#### 4. Verify and SSH in
+
+```bash
+ping -c 2 10.66.171.1
+ssh movo@10.66.171.1        # movo2. Password: Welcome00
+```
+
+To find everything on the network: `sudo nmap -sn 10.66.171.0/24`. You should see both PCs, the base, both lidars and both arms.
+
+<Callout type="tip">
+  Nearly all work happens on **movo2**. Reach movo1 from inside movo2 with `ssh
+  movo1`. That hop needs no password.
+</Callout>
+
+### Boot & power
+
+MOVO brings itself up automatically. The upstart job `movo2-core` on movo2 handles this.
+
+1. Make sure the E-stop is reachable and released, the arms are not resting on anything, and the area around the robot is clear.
+2. Press the power button.
+3. Wait about **2.5 minutes**. The robot will:
+   1. Sync movo2's clock from movo1 (the dead CMOS battery workaround)
+   2. Start the ROS master, both arm controllers and the joystick node on movo2
+   3. Let movo1's `movo-core` bring up the base, lidars, Kinect, teleop and MoveIt
+   4. **Stand up and home the arms**
+   5. Put the base in tractor mode
+4. Plug the joystick into **movo2**. It is ready to use.
+
+Check progress from an SSH session on movo2:
+
+```bash
+tail -20 /tmp/movo_boot.log        # ends with "READY ... operational_state=5" when done
+```
+
+To shut down, **tap** the power button once. Do not hold it. Both PCs power off with the robot.
+
+<Callout type="warning">
+  The robot moves on its own about 2 minutes after power-on. Keep people and
+  objects clear of the arms.
+</Callout>
+
+### Software environment
+
+On movo2:
+
+```bash
+source /opt/ros/indigo/setup.bash
+source ~/movo_ws_2/devel/setup.bash      # movo2 uses movo_ws_2 (movo_ws on movo2 is empty)
+export ROS_IP=10.66.171.1                # export AFTER sourcing; sourcing clears it
+rostopic list
+```
+
+On movo1, the workspace is `~/movo_ws` and `ROS_IP=10.66.171.2`. Both are already set in `.bashrc`.
+
+### Scripts (`~/MOVO-SCRIPTS` on movo2)
+
+| File                        | Purpose                                                                    |
+| --------------------------- | -------------------------------------------------------------------------- |
+| `movo_boot.sh`              | Run by the `movo2-core` boot job. Full bringup in the correct order.       |
+| `movo2_boot.launch`         | Arm controllers and joystick node, used by the boot script                 |
+| `movo_autostart_install.sh` | One-time installer for the boot job (already installed)                    |
+| `movo_teleop.sh`            | Manual bringup if the boot job is not used: `bash movo_teleop.sh` / `stop` |
+| `movo_diag.sh`              | Collects the configuration of both PCs into one text file                  |
+| `kinova/`                   | Kinova API test tools and the Gen2 SDK                                     |
+
+### Joystick (Logitech Extreme 3D Pro)
+
+Plug it into **movo2**. Button numbers match the numbers printed on the stick.
+
+| Button      | Function                                             |
+| ----------- | ---------------------------------------------------- |
+| 1 (trigger) | **Dead-man.** Hold it to move anything.              |
+| 2 (thumb)   | Manual override                                      |
+| 3           | Base standby                                         |
+| 4           | Base tractor (enables driving)                       |
+| 5 / 6       | Wrist motion (arm mode)                              |
+| 7           | **E-stop**                                           |
+| 8           | Home arms (close the fingers first; needs clearance) |
+| 9           | Head (pan-tilt) mode                                 |
+| 10          | Base mode                                            |
+| 11          | Right arm mode (not working yet, see below)          |
+| 12          | Left arm mode                                        |
+
+In base mode, push the stick forward or back to drive, twist it to rotate, and push it sideways to strafe (the base is omnidirectional). If motion is very slow, push the throttle slider toward **+**.
+
+### Kinova Development Center
+
+Development Center is installed on movo2 at `/opt/JACO-SDK/GUI` and opens on the robot's HDMI monitor. It **only connects over USB.** Its ethernet mode is hard-coded to Kinova's factory IP (`192.168.100.10`), and the MOVO arms were re-addressed.
+
+1. Connect a USB Type-B cable from the arm's base to movo2.
+2. Stop the ROS arm controllers and launch Development Center:
+
+```bash
+sudo stop movo2-core
+cd /opt/JACO-SDK/GUI && sudo env DISPLAY=:0 XAUTHORITY=$HOME/.Xauthority ./DevelopmentCenter.sh
+```
+
+3. Check **USB Enable** and uncheck Ethernet. The top-right corner shows which arm is connected.
+4. When you're done, close Development Center, **unplug the USB cable**, and run `sudo start movo2-core`.
+
+<Callout type="danger">
+  Do not change the arm's **Ethernet / IP settings** in Development Center. The
+  right arm must stay at `10.66.171.15` and the left arm at `10.66.171.16`, or
+  MOVO cannot reach them.
+</Callout>
+
+<Callout type="info">
+  The Gen2 SDK 1.5.1 Linux build shipped broken and needed two manual fixes: (1)
+  the flattened symlinks in `/opt/JACO-SDK/GUI/lib` were restored, and (2) the
+  missing Qt platform plugin `libqxcb.so` (Qt 5.7.1) was taken from the
+  `PyQt5==5.7.1` wheel and placed in `/opt/JACO-SDK/GUI/platforms/`. The SDK's
+  `installSDK64.sh` was **not** run, because it replaces the Kinova API 6.0.1
+  that MOVO depends on.
+</Callout>
+
+## Validation & Diagnostics
+
+### Quick health check (on movo2)
+
+```bash
+date; ssh movo1 date                                         # clocks must match
+rosnode list | grep -E "arm_ctl|movo_driver|move_group|joy"  # all should be present
+rosnode info /move_group | grep -c arm_controller            # must be > 0
+rostopic echo -n1 /movo/feedback/status | grep operational_state   # 5 = tractor
+tail -20 /tmp/movo_boot.log
+```
+
+### Boot job control
+
+```bash
+sudo status movo2-core
+sudo stop movo2-core
+sudo start movo2-core
+sudo tail -30 /var/log/upstart/movo2-core.log
+ssh -t movo1 "sudo service movo-core status"    # movo1's stack
+```
+
+### Useful commands
+
+| Task                   | Command                                                                                                                    |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| Base to tractor        | `rostopic pub -1 /movo/gp_command movo_msgs/ConfigCmd '{gp_cmd: "GENERAL_PURPOSE_CMD_SET_OPERATIONAL_MODE", gp_param: 5}'` |
+| Base to standby        | same as above with `gp_param: 4`                                                                                           |
+| Home arms              | `rostopic pub -1 /movo/home_arms std_msgs/Bool 'data: true'`                                                               |
+| Stand up + home again  | `rosnode kill /move_group; roslaunch movo_bringup movo_moveit.launch local:=true`                                          |
+| Tuck (sit down)        | `roslaunch movo_demos tuck_robot.launch`                                                                                   |
+| Drive without joystick | `rostopic pub -r 10 /movo/manual_override/cmd_vel geometry_msgs/Twist '{linear: {x: 0.1}}'`                                |
+
+<Callout type="warning">
+  `/movo/cmd_vel` is the **output** of the velocity mux. Publish to a mux input
+  such as `/movo/manual_override/cmd_vel` instead.
+</Callout>
+
+### Health report
+
+| Component    | Status                                                             |
+| ------------ | ------------------------------------------------------------------ |
+| Power        | Powers on and holds charge                                         |
+| movo1 PC     | Boots; `movo-core` auto-start works                                |
+| movo2 PC     | Boots; dead CMOS battery (clock auto-synced at boot)               |
+| Mobile base  | **Working**, joystick and command line                             |
+| Lidars       | Front and rear online                                              |
+| Kinect v2    | Detected on movo2; `kinect2_bridge` runs (image not yet verified)  |
+| Head / torso | Working                                                            |
+| Left arm     | **Working**: joystick, homing, MoveIt                              |
+| Right arm    | **Partial**: MoveIt and Development Center work, joystick does not |
+| Auto bringup | **Working**: stands up, homes, enables base at power-on            |
+
+### Right arm issue
+
+The right arm executes MoveIt joint trajectories (startup and homing) and moves in both angular and Cartesian mode from Development Center over USB. It **ignores Cartesian velocity commands** from MOVO's driver (`/movo/right_arm/cartesian_vel_cmd`), so it does not respond to the joystick. The left arm works with the identical driver and settings.
+
+The only configuration difference between the two arms is the **arm type**: the left is "JACO v2 6DOF Assist" and the right is "JACO v2 6DOF Service". The right arm's serial was also overwritten with `RIGHT ARM`. A factory restore did not change either. A support ticket with screenshots has been sent to Kinova (support@kinova.ca) asking how to set the right arm back to Assist.
+
+## Troubleshooting
+
+| Issue                                                  | Cause                                     | Solution                                                                                                            |
+| ------------------------------------------------------ | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Can't ping or SSH the robot                            | Laptop not on `10.66.171.x`               | Set the static IP from [Connecting to MOVO](#connecting-to-movo); check the link light                              |
+| movo2 shows the year 2013                              | Dead CMOS battery                         | The boot job fixes it. Manually: `sudo service chrony stop; sudo ntpdate -b 10.66.171.2; sudo service chrony start` |
+| `Unable to communicate with master`                    | No ROS master                             | `sudo start movo2-core` (or `bash ~/MOVO-SCRIPTS/movo_teleop.sh`)                                                   |
+| `invalid ROS_IP (an empty string)`                     | Sourcing a workspace cleared it           | `export ROS_IP=10.66.171.1` after `source`                                                                          |
+| `run_id on parameter server does not match`            | movo1 connected before `roscore` finished | Start the master with `rosmaster --core` (the boot script does this)                                                |
+| `shutdown request: new node registered with same name` | Two launches running the same nodes       | Don't run `movo_system_local.launch` on movo2; movo1's `movo-core` already starts those nodes                       |
+| `_home_arm_planner failed (-4)` loop; arms frozen      | MoveIt started before the arm controllers | `rosnode kill /move_group; roslaunch movo_bringup movo_moveit.launch local:=true`                                   |
+| Base won't drive                                       | Base in standby (`operational_state: 4`)  | Joystick button 4, or the tractor command above                                                                     |
+| Joystick moves the head instead of the base            | Teleop in head mode                       | Press 10 for base mode                                                                                              |
+| No `/dev/input/js0`                                    | Joystick on the wrong PC                  | Plug it into movo2                                                                                                  |
+| `Kinova API failed: ... (1015)`                        | Arm request timed out                     | A single one at startup is harmless. If it repeats, check that Development Center is closed and USB unplugged       |
+| Development Center: `Bind failed`                      | Another program holds the ports           | `sudo stop movo2-core; sudo pkill -f DevelopmentCenter`                                                             |
+| Development Center won't connect                       | Using ethernet mode                       | Use USB; ethernet mode only targets `192.168.100.10`                                                                |
+
+## Attempted Fixes
+
+<RepairEntry title="Initial power-on test" date="Week1" outcome="success">
+  Powered on the MOVO platform for the first time in the lab. The main breaker
+  was engaged and the system completed its boot sequence. LEDs cycled normally
+  and both onboard PCs (movo1, movo2) came online.
+</RepairEntry>
+
+<RepairEntry title="SSH access confirmed" date="Week 1" outcome="success">
+  Successfully SSHed into both movo1 and movo2 using default credentials.
+  Default password: `Welcome00`. Confirmed both machines are reachable over the
+  Wifi network and respond to ping at their expected IPs (`10.66.171.1` and
+  `10.66.171.2`).
+</RepairEntry>
+
+<RepairEntry title="Hardware inspection & disassembly" date="Week 1" outcome="success">
+  Checked the fuse box — no blown or rusted fuses. Flipped the switches on what
+  appear to be the arm drive controllers. Tested mouse, keyboard, and HDMI input
+  on the human interface panel. Removed the lower casing to access the robot's
+  internals.
+
+  <Image
+  src="/robot-media/kinova_movo/images/fusebox.JPG"
+  size="small"
+  />
+</RepairEntry>
+
+<RepairEntry title="HDMI display on human interface" date="Week 2" outcome="failed">
+  Tested the built-in HDMI port on the human interface — no signal detected.
+  Tried a jerry-rigged female-to-female HDMI adapter: worked on an external TV
+  but produced a green screen when connected to the onboard computer. Removed
+  the upper torso to investigate further.
+
+  <Image
+  src="/robot-media/kinova_movo/images/green-screen.png"
+  size="medium"
+  />
+</RepairEntry>
+
+<RepairEntry
+  title="IP reconfiguration between onboard PCs"
+  date="Week 2"
+  outcome="success"
+>
+  movo2's IP was previously changed. Updated movo1's `/etc/hosts` to point to
+  the new address so the two computers could find each other. Both machines were
+  then pingable from each other.
+</RepairEntry>
+
+<RepairEntry
+  title="Reset movo2 IP to original address"
+  date="Week 3"
+  outcome="success"
+>
+  Permanently reset movo2's IP back to `10.66.171.1` (original) via network
+  config files, and restored movo1's `/etc/hosts` accordingly. Both computers
+  now ping each other at their intended addresses.
+</RepairEntry>
+
+<RepairEntry title="Arm ethernet debugging" date="Week 3" outcome="failed">
+  Verified ethernet cables to both arms were seated and functional. Arms are
+  receiving power (they lock up on boot) but neither arm is visible on the
+  network. `movochk` (run from movo1) could ping all platform components except
+  the left arm. Unplugged cables to confirm the other IPs were not the arms.
+
+  <Callout type="warning">
+    ROSCORE runs on movo2. `movochk` must be run from movo1.
+    Do NOT plug an ethernet cable back into itself — this caused the robot to shut off.
+  </Callout>
+</RepairEntry>
+
+<RepairEntry title="Short-circuit arm controllers into recovery mode" date="Week 4" outcome="failed">
+  Attempted to force the arm controllers into recovery mode by briefly
+  short-circuiting them. Did not make the arms enter recovery mode. Ran launch files
+  and hit an rviz package missing error on movo1; rviz ran on movo2 but lacked
+  the packages that the movo1 launch file depends on.
+
+  <Image
+  src="/robot-media/kinova_movo/images/short-circuit-image.png"
+  size="medium"
+  />
+</RepairEntry>
+
+<RepairEntry title="JACO arm firmware update via development center" date="Week 4" outcome="partial">
+  Updated the left arm firmware using Kinova's development center over USB Type-B.
+  After the update, the left arm's ethernet port began blinking orange — first
+  sign of any network activity from the arm. Changed the right arm's IP to
+  `10.66.171.16` (the address movo1 expects). Used the virtual joystick over USB
+  to move the left arm, after which the left arm controller started providing a
+  signal via ethernet.
+
+Running the development center update on both arms resolved the ethernet
+connectivity issue. `movochk` now pings all components except the Kinect2.
+Launch files still fail to run successfully.
+
+  <Callout type="tip">
+    Shut down by tapping the power button once — do not hold. The onboard
+    computers power off alongside the robot.
+  </Callout>
+</RepairEntry>
+
+<RepairEntry
+  title="Clock, workspace and ROS master fixes"
+  date="2026-10-06"
+  outcome="success"
+>
+  Found three blockers to bringup. **Clocks:** movo2 was set to 2013 and movo1
+  was about 8.5 hours ahead, which breaks TF and message timestamps; both were
+  set from a laptop and resynced. **Workspace:** the real code on movo2 is in
+  `~/movo_ws_2` (`~/movo_ws` is empty); `~/env.sh` and `.bashrc` were pointed at
+  it. **ROS master:** nothing on movo2 starts a master, and movo1's `movo-core`
+  auto-start waits for one. Running `roscore` on movo2 let movo1 bring up the
+  base, lidars, Kinect, teleop and MoveIt.
+</RepairEntry>
+
+<RepairEntry title="Mobile base driving" date="2026-10-06" outcome="success">
+  The base sat in standby (`operational_state: 4`). Switching to tractor mode
+  (5) through `/movo/gp_command` and publishing to
+  `/movo/manual_override/cmd_vel` drove the base. Joystick teleop then worked
+  (base mode 10, tractor 4, trigger as dead-man).
+</RepairEntry>
+
+<RepairEntry
+  title="Arm controllers and homing"
+  date="2026-10-06"
+  outcome="success"
+>
+  Arm controllers were never started by the auto-start; launched
+  `movo_manipulation.launch` on movo2 and both arms connected. Homing looped
+  with `_home_arm_planner failed (-4)` because MoveIt started before the arm
+  controllers existed. Restarting MoveIt after the arms fixed it, and
+  `init_robot` stood the robot up and homed both arms.
+</RepairEntry>
+
+<RepairEntry
+  title="Full configuration audit and joystick on movo2"
+  date="2026-10-23"
+  outcome="success"
+>
+  Collected the configuration of both PCs. Confirmed both are Intel NUC5i7RYH,
+  the Kinect v2 is on movo2's USB, and only movo1 had an auto-start job. Set up
+  the Logitech Extreme 3D Pro on movo2 with `joy_node` and mapped all buttons.
+</RepairEntry>
+
+<RepairEntry
+  title="Right arm joystick investigation"
+  date="2026-10-23"
+  outcome="partial"
+>
+  The right arm accepts MoveIt trajectories but ignores Cartesian velocity
+  commands from MOVO's driver, even when published directly. Set up Kinova
+  Development Center on movo2 (fixed the broken Linux SDK build) and connected
+  over USB. The right arm moves in Cartesian mode from Development Center, so
+  its hardware works. Comparing both arms showed identical firmware (6.2.11.0)
+  and settings, except the arm type: left = **Assist**, right = **Service**. A
+  factory restore did not change the type. Emailed Kinova support with
+  screenshots.
+</RepairEntry>
+
+<RepairEntry
+  title="Automatic bringup at power-on"
+  date="2026-10-26"
+  outcome="success"
+>
+  Installed the upstart job `movo2-core` on movo2. On power-on it syncs the
+  clock from movo1, starts the master, arm controllers and joystick, waits for
+  movo1's stack, verifies MoveIt sees the arms (restarting MoveIt if not),
+  stands the robot up, homes the arms, and enables tractor mode. Removed the arm
+  launch from movo1's `movo1.launch` (backup kept as `movo1.launch.bak`) to
+  prevent duplicate arm nodes. Tested successfully: both arms completed their
+  homing trajectories.
+</RepairEntry>
+
+## Safety & Maintenance
+
+<Callout type="danger">
+  MOVO is a heavy mobile platform. Keep clear of the path during navigation.
+  Arms have pinch points. E-stop must be within reach at all times. Never work
+  on the robot while powered on unless necessary. The robot stands up and homes
+  its arms automatically about 2 minutes after power-on.
+</Callout>
+
+### Best practices
+
+- Keep the workspace clear for navigation
+- Arms must not rest on anything at power-on (the fingers open during startup)
+- Close the fingers before homing (button 8)
+- Never force a JACO arm by hand while it's powered; the joints are not backdrivable
+- Put the base back in standby (button 3) when you're done
+- Back up `/home/movo/movo_ws_2` (movo2) and `/home/movo/movo_ws` (movo1) before code updates
+- Log all sessions in the change log
+
+### Maintenance schedule
+
+| Task                       | Frequency | Last Done |
+| -------------------------- | --------- | --------- |
+| Software update            | As needed | _TBD_     |
+| Kinect calibration         | As needed | _TBD_     |
+| Hardware inspection        | Monthly   | _TBD_     |
+| Replace movo2 CMOS battery | Once      | _Pending_ |
+
+## Reference
+
+### Lab access
+
+- **Location:** Brickyard, 2nd floor
+- **Door:** Does NOT close properly — pull it shut behind you
+- **Keycard access:** We do NOT have keycard access
+- **To get in:** Contact **Taha** (usually 5th floor, 11am–7pm)
+- **3D printers & soldering:** Talk to **Nick** for training before using
+- **Multimeter:** _Need to purchase_
+
+### Resources & documentation
+
+| Resource              | Link                                               |
+| --------------------- | -------------------------------------------------- |
+| Kinova MOVO GitHub    | https://github.com/Kinovarobotics/kinova-movo      |
+| MOVO Wiki (Archived)  | https://github.com/Kinovarobotics/kinova-movo/wiki |
+| ROS Wiki              | http://wiki.ros.org/movo_demos                     |
+| MoveIt! Documentation | https://moveit.ros.org/                            |
+| Kinova support        | support@kinova.ca                                  |
+
+### Demo scripts
+
+| Demo                    | Command                                     |
+| ----------------------- | ------------------------------------------- |
+| Tuck robot (sit down)   | `roslaunch movo_demos tuck_robot.launch`    |
+| Manual bringup + teleop | `bash ~/MOVO-SCRIPTS/movo_teleop.sh`        |
+| Stop teleop             | `bash ~/MOVO-SCRIPTS/movo_teleop.sh stop`   |
+| Robot demo              | `roslaunch movo_demos robot_demo.launch`    |
+| Mapping                 | `roslaunch movo_demos robot_mapping.launch` |
+
+### Change log
+
+| Date       | Change                                                                                  | Author    |
+| ---------- | --------------------------------------------------------------------------------------- | --------- |
+| 2026-10-26 | Added connection guide, auto-bringup, joystick map, Development Center, troubleshooting | Ali Kefel |
+| 2026-10-26 | Corrected arms to 6-DOF JACO2 (Kinova API, not Kortex) and OS to Ubuntu 14.04           | Ali Kefel |
+| 2026-10-26 | Documented auto-bringup job `movo2-core`                                                | Ali Kefel |
+| 2026-10-23 | Documented right arm investigation (Assist vs Service) and Kinova ticket                | Ali Kefel |
+| 2026-10-06 | Documented clock, workspace, ROS master, base and arm fixes                             | Ali Kefel |
+| 2026-03-06 | Documented Week 4 progress: arm firmware update via dev center                          | Ali Kefel |
+| 2026-03-06 | Documented arm ethernet debugging findings and short-circuit recovery attempt           | Ali Kefel |
+| 2026-03-06 | Documented initial hardware inspection and disassembly findings                         | Ali Kefel |
+| 2026-03-06 | Added Attempted Fixes section with repair log cards                                     | Ali Kefel |
+| 2026-03-06 | Added networking details including IP issue and hosts file configuration                | Ali Kefel |
+| 2026-02-17 | Updated with wiki How-Tos, added photos                                                 | Ali Kefel |
+| 2026-02-16 | Wiki page created, initial template                                                     | Ali Kefel |
